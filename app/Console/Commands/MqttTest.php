@@ -23,6 +23,7 @@ class MqttTest extends Command
             //     $this->info("[{$topic}] >>> {$message}");
             // }, 0);
 
+
             // $mqtt->subscribe('#', function (string $topic, string $message) {
             //     $this->info("[{$topic}] >>> {$message}");
             // }, 0);
