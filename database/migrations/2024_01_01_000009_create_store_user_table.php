@@ -6,24 +6,20 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::create('mqtt_messages', function (Blueprint $table) {
+        Schema::create('store_user', function (Blueprint $table) {
             $table->id();
-            $table->string('topic');
-            $table->text('payload');
+            $table->foreignId('store_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->timestamps();
+
+            $table->unique(['store_id', 'user_id']);
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('mqtt_messages');
+        Schema::dropIfExists('store_user');
     }
 };
