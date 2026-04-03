@@ -107,3 +107,12 @@ php artisan make:listener HandleAquaparkMessage --event=AquaparkMessageReceived
 php artisan make:controller Api/MqttMessageController --api
 
 brew install mosquitto
+
+Дії (act): 
+"1" = Відкриття, 
+"2" = Закриття, 
+"3" = Прихід, 
+"4" = Відхід, 
+"5" = Запуск генератора, 
+"6" = Зупинка генератора, 
+"7" = Температура

@@ -15,6 +15,9 @@ return new class extends Migration
             $table->id();
             $table->string('topic');
             $table->text('payload');
+            $table->string('device_id')->comment('ID of the reader');
+            $table->unsignedTinyInteger('action')->comment('Action type (1 for state change, etc.)');
+            $table->string('data')->comment('Office ID or employee ID');
             $table->timestamps();
         });
     }
