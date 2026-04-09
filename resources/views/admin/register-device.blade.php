@@ -16,7 +16,7 @@
     <form method="POST" action="{{ route('admin.registerDevice', $message->id) }}">
         @csrf
 
-        {{-- ── Назва пристрою (datalist) ──────────────────────────────────── --}}
+        {{-- ── Device name (datalist) ────────────────────────────────────── --}}
         <div class="mb-3">
             <label class="form-label fw-semibold">Назва пристрою</label>
             <input type="text" name="device_name" class="form-control"
@@ -33,7 +33,17 @@
             </div>
         </div>
 
-        {{-- ── Роль у діапазоні (чекбокси) ───────────────────────────────── --}}
+        {{-- ── ON/OFF device ───────────────────────────────────────────────── --}}
+        <div class="mb-3 form-check">
+            <input type="checkbox" class="form-check-input" id="isOnOff" name="is_on_off" value="1"
+                   {{ old('is_on_off') ? 'checked' : '' }}>
+            <label class="form-check-label fw-semibold" for="isOnOff">
+                Пристрій ON/OFF (генератор, витяжка, реле тощо)
+            </label>
+            <div class="form-text">Поле <code>data</code> містить значення <code>on</code> або <code>off</code>. Увімкніть для розрахунку часу роботи та суміжної статистики.</div>
+        </div>
+
+        {{-- ── Range role (checkboxes) ────────────────────────────────────── --}}
         <div class="mb-4">
             <label class="form-label fw-semibold">Роль у діапазоні</label>
             <div class="form-text mb-2">
@@ -71,7 +81,7 @@
 
         <hr>
 
-        {{-- ── Власник (datalist по email) ─────────────────────────────────── --}}
+        {{-- ── Owner (datalist by email) ──────────────────────────────────── --}}
         <h5 class="mb-3">Власник</h5>
         <div class="mb-3">
             <label class="form-label">Email власника</label>
@@ -81,7 +91,10 @@
                 placeholder="email@example.com">
             <datalist id="users-list">
                 @foreach($users as $user)
-                    <option value="{{ $user->email }}" data-name="{{ $user->name }}">
+                    <option value="{{ $user->email }}"
+                            data-name="{{ $user->name }}"
+                            data-companies="{{ $user->companies->pluck('name')->join('|||') }}"
+                            data-company-ids="{{ $user->companies->pluck('id')->join(',') }}">
                 @endforeach
             </datalist>
             <div class="form-text">Виберіть існуючого або введіть новий email — обліковий запис буде створено.</div>
@@ -98,8 +111,8 @@
             <div class="input-group">
                 <input type="text" name="owner_new_password" id="ownerNewPassword" class="form-control font-monospace"
                     value="{{ old('owner_new_password', $generatedPassword) }}">
-                <button type="button" class="btn btn-outline-secondary" id="copyPasswordBtn" title="Скопіювати">
-                    📋
+                <button type="button" class="btn btn-outline-secondary" id="copyPasswordBtn" title="Copy">
+                    Copy
                 </button>
             </div>
             <div class="form-text">Використовується лише якщо користувача з таким email ще не існує.</div>
@@ -107,11 +120,21 @@
 
         <hr>
 
-        {{-- ── Компанія (datalist) ─────────────────────────────────────────── --}}
+        {{-- ── Company ─────────────────────────────────────────────────────── --}}
         <h5 class="mb-3">Компанія</h5>
-        <div class="mb-4">
-            <label class="form-label">Назва компанії</label>
-            <input type="text" name="company_name" class="form-control"
+
+        {{-- Shown when existing user has companies → select from list --}}
+        <div id="companySelectGroup" style="display:none" class="mb-3">
+            <label class="form-label">Компанія власника</label>
+            <select name="company_name_select" id="companySelect" class="form-select">
+                <option value="">— виберіть компанію —</option>
+            </select>
+            <div class="form-text">Власник вже має зареєстровані компанії. Виберіть або введіть нову нижче.</div>
+        </div>
+
+        <div class="mb-4" id="companyNameGroup">
+            <label class="form-label" id="companyNameLabel">Назва нової компанії</label>
+            <input type="text" name="company_name" id="companyName" class="form-control"
                 list="companies-list" autocomplete="off"
                 value="{{ old('company_name') }}"
                 placeholder="Введіть або виберіть...">
@@ -124,7 +147,7 @@
 
         <hr>
 
-        {{-- ── Дії пристрою ───────────────────────────────────────────────── --}}
+        {{-- ── Device actions ─────────────────────────────────────────────── --}}
         <h5 class="mb-3">Дії пристрою</h5>
         <p class="text-muted small">Додайте одну або більше дій, які цей пристрій може виконувати.</p>
 
@@ -163,34 +186,6 @@
             </div>
         </template>
 
-        <hr>
-
-        {{-- ── Реєстрація об'єкта за значенням data ───────────────────────── --}}
-        <h5 class="mb-2">Зареєструвати об'єкт</h5>
-        <p class="text-muted small mb-3">
-            Якщо поле <code>data: {{ $message->data }}</code> є ідентифікатором офісу, магазину або іншого об'єкта —
-            можна зареєструвати його одразу. Власник зможе пізніше заповнити деталі (назву, орендаря, контакти тощо).
-        </p>
-
-        <div class="form-check mb-3">
-            <input type="checkbox" class="form-check-input" id="registerObject" name="register_object" value="1"
-                   {{ old('register_object') ? 'checked' : '' }}>
-            <label class="form-check-label" for="registerObject">
-                Зареєструвати <code>{{ $message->data }}</code> як об'єкт
-            </label>
-        </div>
-
-        <div id="objectFields" style="display: {{ old('register_object') ? 'block' : 'none' }};">
-            <div class="mb-3">
-                <label class="form-label">Назва <span class="text-muted small">(необов'язково)</span></label>
-                <input type="text" name="object_name" class="form-control"
-                       value="{{ old('object_name') }}"
-                       placeholder="Залиште порожнім — власник заповнить">
-                <div class="form-text">Тип, контакти та інші деталі власник вкаже самостійно.</div>
-            </div>
-        </div>
-
-        <hr>
 
         <div class="d-flex gap-2 mt-4">
             <button type="submit" class="btn btn-primary">Зареєструвати пристрій</button>
@@ -200,44 +195,86 @@
 </div>
 
 <script>
-    // Автопідстановка імені + приховування пароля при виборі існуючого email
+    // Build users map: email → { name, companies: [{name, id}] }
+    const usersMap = {};
+    document.querySelectorAll('#users-list option').forEach(opt => {
+        const companyNames = opt.dataset.companies ? opt.dataset.companies.split('|||') : [];
+        const companyIds   = opt.dataset.companyIds ? opt.dataset.companyIds.split(',') : [];
+        const companies = companyNames.map((n, i) => ({ name: n, id: companyIds[i] })).filter(c => c.name);
+        usersMap[opt.value] = { name: opt.dataset.name, companies };
+    });
+
     const ownerEmailInput    = document.getElementById('ownerEmail');
     const ownerNameInput     = document.getElementById('ownerName');
     const passwordGroup      = document.getElementById('newUserPasswordGroup');
-    const usersMap = {};
-    document.querySelectorAll('#users-list option').forEach(opt => {
-        usersMap[opt.value] = opt.dataset.name;
-    });
+    const companySelectGroup = document.getElementById('companySelectGroup');
+    const companySelect      = document.getElementById('companySelect');
+    const companyNameGroup   = document.getElementById('companyNameGroup');
+    const companyNameInput   = document.getElementById('companyName');
+    const companyNameLabel   = document.getElementById('companyNameLabel');
+
+    function updateCompanyUI(userData) {
+        // Clear select options
+        companySelect.innerHTML = '<option value="">— виберіть компанію —</option>';
+
+        if (userData && userData.companies.length > 0) {
+            // Existing user with companies
+            userData.companies.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.name;
+                opt.textContent = c.name;
+                companySelect.appendChild(opt);
+            });
+            companySelectGroup.style.display = '';
+            companyNameLabel.textContent = 'Або введіть нову компанію';
+            companyNameInput.placeholder  = 'Нова компанія (залиште порожнім якщо вибрали вище)';
+
+            // Pre-select first if only one
+            if (userData.companies.length === 1) {
+                companySelect.value = userData.companies[0].name;
+                companyNameInput.value = '';
+            }
+        } else {
+            companySelectGroup.style.display = 'none';
+            companyNameLabel.textContent = 'Назва компанії';
+            companyNameInput.placeholder  = 'Введіть або виберіть...';
+        }
+    }
+
     ownerEmailInput.addEventListener('input', function () {
-        const name = usersMap[this.value];
-        if (name) {
-            ownerNameInput.value = name;
+        const userData = usersMap[this.value];
+        if (userData) {
+            ownerNameInput.value = userData.name;
             passwordGroup.style.display = 'none';
+            updateCompanyUI(userData);
         } else {
             passwordGroup.style.display = '';
+            updateCompanyUI(null);
         }
     });
 
-    // Показ/приховування полів об'єкта
-    document.getElementById('registerObject').addEventListener('change', function () {
-        document.getElementById('objectFields').style.display = this.checked ? 'block' : 'none';
+    // When user picks from company select — clear the text input
+    companySelect.addEventListener('change', function () {
+        if (this.value) {
+            companyNameInput.value = '';
+        }
     });
 
-    // Кнопка копіювання пароля
+    // Copy password button
     document.getElementById('copyPasswordBtn').addEventListener('click', function () {
         const val = document.getElementById('ownerNewPassword').value;
         navigator.clipboard.writeText(val).then(() => {
-            this.textContent = '✓';
-            setTimeout(() => this.textContent = '📋', 1500);
+            this.textContent = 'Copied';
+            setTimeout(() => this.textContent = 'Copy', 1500);
         });
     });
 
-    // Чорний список
+    // Blacklist
     document.getElementById('blacklistDevice').addEventListener('change', function () {
         document.getElementById('blacklistReasonGroup').style.display = this.checked ? 'block' : 'none';
     });
 
-    // Чекбокси діапазону — взаємовиключні
+    // Range checkboxes — mutually exclusive
     document.querySelectorAll('.range-cb').forEach(cb => {
         cb.addEventListener('change', function () {
             if (this.checked) {
@@ -248,7 +285,7 @@
         });
     });
 
-    // Динамічні рядки дій
+    // Dynamic action rows
     let actionIndex = {{ old('actions') ? count(old('actions')) : 0 }};
     const container = document.getElementById('actions-container');
     const template  = document.getElementById('action-row-template');

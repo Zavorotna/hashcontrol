@@ -63,34 +63,137 @@ class TrackedObjectController extends Controller
         return redirect()->route('user.tracked-objects.index')->with('success', 'Об\'єкт зареєстровано.');
     }
 
-    public function show(TrackedObject $trackedObject)
+    public function show(TrackedObject $trackedObject, Request $request)
     {
         $this->authorizeObject($trackedObject);
 
-        // Визначаємо пристрої що надсилали дані для цього об'єкта
-        $deviceIds = DeviceLog::where('data', $trackedObject->external_id)
-            ->pluck('device_id')
-            ->unique();
+        // ── Period / date ─────────────────────────────────────────────────────
+        $period     = $request->query('period', 'month');
+        $customDate = $request->query('date');
 
-        $associatedDevices = Device::whereIn('id', $deviceIds)
+        if ($period === 'day' && $customDate) {
+            $since = \Carbon\Carbon::parse($customDate)->startOfDay();
+            $until = \Carbon\Carbon::parse($customDate)->endOfDay();
+        } else {
+            $since = match($period) {
+                'today'  => now()->startOfDay(),
+                'week'   => now()->subWeek(),
+                '3month' => now()->subMonths(3),
+                default  => now()->subMonth(),
+            };
+            $until = now();
+        }
+
+        // ── Devices explicitly linked to this object (pivot) ─────────────────
+        $trackedObject->load('devices');
+
+        // ── Devices that have logged data for this object ─────────────────────
+        $loggedDeviceIds = DeviceLog::where('data', $trackedObject->external_id)
+            ->pluck('device_id')->unique();
+
+        $associatedDevices = Device::whereIn('id', $loggedDeviceIds)
             ->with('deviceActions.action')
             ->get();
 
-        $recentLogs = DeviceLog::where('data', $trackedObject->external_id)
-            ->with(['device', 'action'])
-            ->latest('logged_at')
-            ->take(50)
+        // ── All devices of the object's company, excluding already attached ─────
+        $attachedIds = $trackedObject->devices->pluck('id');
+        $availableDevices = Device::where('company_id', $trackedObject->company_id)
+            ->whereNotIn('id', $attachedIds)
+            ->orderByDesc('created_at')
             ->get();
 
+        // Entry devices (is_range_start = true) and exit devices (is_range_start = false).
+        // DB-level WHERE correctly excludes NULL values, so measurement devices are ignored.
+        $entryDeviceIds = Device::whereIn('id', $loggedDeviceIds)->where('is_range_start', true)->pluck('id');
+        $exitDeviceIds  = Device::whereIn('id', $loggedDeviceIds)->where('is_range_start', false)->pluck('id');
+        $hasRangePair   = $entryDeviceIds->isNotEmpty() && $exitDeviceIds->isNotEmpty();
+
+        // ── Logs in selected period ───────────────────────────────────────────
+        $periodLogs = DeviceLog::where('data', $trackedObject->external_id)
+            ->whereBetween('logged_at', [$since, $until])
+            ->with(['device', 'action'])
+            ->orderBy('logged_at')
+            ->get();
+
+        // ── Build entry/exit sessions ─────────────────────────────────────────
+        $sessions = collect();
+        if ($hasRangePair) {
+            $sessions = $this->buildSessions($periodLogs, $entryDeviceIds, $exitDeviceIds, $until);
+        }
+
+        // ── Period summary ────────────────────────────────────────────────────
+        if ($hasRangePair) {
+            $totalMin = $sessions->sum('duration_min');
+            $periodSummary = [
+                'sessions'  => $sessions->count(),
+                'total_h'   => floor($totalMin / 60),
+                'total_m'   => $totalMin % 60,
+                'avg_min'   => $sessions->count() > 0 ? (int) round($totalMin / $sessions->count()) : 0,
+            ];
+        } else {
+            $periodSummary = ['accesses' => $periodLogs->count()];
+        }
+
+        // ── All-time quick stats (sidebar counters) ───────────────────────────
         $stats = [
             'day'   => DeviceLog::where('data', $trackedObject->external_id)->where('logged_at', '>=', now()->subDay())->count(),
             'week'  => DeviceLog::where('data', $trackedObject->external_id)->where('logged_at', '>=', now()->subWeek())->count(),
             'month' => DeviceLog::where('data', $trackedObject->external_id)->where('logged_at', '>=', now()->subMonth())->count(),
         ];
 
+        $recentLogs = $periodLogs->sortByDesc('logged_at');
+
         return view('user.tracked-objects.show', compact(
-            'trackedObject', 'recentLogs', 'stats', 'associatedDevices'
+            'trackedObject', 'associatedDevices', 'availableDevices',
+            'period', 'customDate', 'since', 'until',
+            'periodLogs', 'sessions', 'hasRangePair', 'periodSummary',
+            'stats', 'recentLogs'
         ));
+    }
+
+    /**
+     * Pair entry/exit logs into sessions with duration.
+     * If a session has no matching exit within the period, it is marked as still open.
+     */
+    private function buildSessions($logs, $entryDeviceIds, $exitDeviceIds, $until): \Illuminate\Support\Collection
+    {
+        $sessions  = [];
+        $openEntry = null;
+
+        foreach ($logs as $log) {
+            if ($entryDeviceIds->contains($log->device_id)) {
+                // New entry — if a previous session was left open without exit, close it implicitly
+                $openEntry = $log;
+            } elseif ($exitDeviceIds->contains($log->device_id) && $openEntry !== null) {
+                $entryTime = \Carbon\Carbon::parse($openEntry->logged_at);
+                $exitTime  = \Carbon\Carbon::parse($log->logged_at);
+
+                $sessions[] = [
+                    'entry_at'     => $openEntry->logged_at,
+                    'exit_at'      => $log->logged_at,
+                    'duration_min' => (int) $entryTime->diffInMinutes($exitTime),
+                    'entry_device' => $openEntry->device,
+                    'exit_device'  => $log->device,
+                    'open'         => false,
+                ];
+                $openEntry = null;
+            }
+        }
+
+        // Session still open at the end of the period
+        if ($openEntry !== null) {
+            $entryTime = \Carbon\Carbon::parse($openEntry->logged_at);
+            $sessions[] = [
+                'entry_at'     => $openEntry->logged_at,
+                'exit_at'      => null,
+                'duration_min' => (int) $entryTime->diffInMinutes($until),
+                'entry_device' => $openEntry->device,
+                'exit_device'  => null,
+                'open'         => true,
+            ];
+        }
+
+        return collect($sessions);
     }
 
     public function edit(TrackedObject $trackedObject)
@@ -133,8 +236,36 @@ class TrackedObjectController extends Controller
         return redirect()->route('user.tracked-objects.index')->with('success', 'Об\'єкт видалено.');
     }
 
+    public function attachDevice(Request $request, TrackedObject $trackedObject)
+    {
+        $this->authorizeObject($trackedObject);
+
+        $request->validate(['device_id' => 'required|exists:devices,id']);
+
+        $device = Device::findOrFail($request->device_id);
+
+        // Ensure device belongs to user's company (admin bypasses)
+        if (auth()->user()->role !== 'admin') {
+            $companyIds = auth()->user()->companies()->pluck('id');
+            abort_unless($companyIds->contains($device->company_id), 403);
+        }
+
+        $trackedObject->devices()->syncWithoutDetaching([$device->id]);
+
+        return back()->with('success', "Пристрій «{$device->name}» прив'язано.");
+    }
+
+    public function detachDevice(TrackedObject $trackedObject, Device $device)
+    {
+        $this->authorizeObject($trackedObject);
+
+        $trackedObject->devices()->detach($device->id);
+
+        return back()->with('success', "Пристрій «{$device->name}» відв'язано.");
+    }
+
     /**
-     * Відправити команду на пристрій через MQTT.
+     * Send a command to a device via MQTT.
      * POST /user/tracked-objects/{trackedObject}/send-command
      */
     public function sendCommand(Request $request, TrackedObject $trackedObject)
@@ -149,9 +280,11 @@ class TrackedObjectController extends Controller
 
         $device = Device::findOrFail($request->device_id);
 
-        // Перевіряємо що пристрій належить компанії юзера
-        $companyIds = auth()->user()->companies()->pluck('id');
-        abort_unless($companyIds->contains($device->company_id), 403);
+        // Verify that the device belongs to the user's company (admin bypasses)
+        if (auth()->user()->role !== 'admin') {
+            $companyIds = auth()->user()->companies()->pluck('id');
+            abort_unless($companyIds->contains($device->company_id), 403);
+        }
 
         $payload = json_encode([
             'id'   => $device->device_id,
@@ -172,6 +305,9 @@ class TrackedObjectController extends Controller
 
     private function authorizeObject(TrackedObject $obj): void
     {
+        if (auth()->user()->role === 'admin') {
+            return;
+        }
         $companyIds = auth()->user()->companies()->pluck('id');
         abort_unless($companyIds->contains($obj->company_id), 403);
     }

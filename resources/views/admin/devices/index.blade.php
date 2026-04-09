@@ -1,99 +1,186 @@
 <x-layout title="Пристрої">
-    <div class="container">
-        <h1>Пристрої</h1>
-        <a href="{{ route('admin.devices.create') }}" class="btn btn-primary mb-3">Створити пристрій</a>
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Device ID</th>
-                    <th>Назва</th>
-                    <th class="text-center">Роль</th>
-                    <th>Користувач</th>
-                    <th>Компанія</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($devices as $device)
-                <tr>
-                    <td><code>{{ $device->device_id }}</code></td>
-                    <td>{{ $device->name }}</td>
-                    <td class="text-center">
-                        @if(is_null($device->is_range_start))
-                            <span class="badge bg-light text-dark border">● одиничний</span>
-                        @elseif($device->is_range_start)
-                            <span class="badge bg-success">▶ початок</span>
-                        @else
-                            <span class="badge bg-secondary">■ кінець</span>
-                        @endif
-                    </td>
-                    <td>{{ $device->user ? $device->user->name : '—' }}</td>
-                    <td>{{ $device->company ? $device->company->name : '—' }}</td>
-                    <td>
-                        <a href="{{ route('admin.devices.edit', $device) }}" class="btn btn-sm btn-warning">Редагувати</a>
+<div class="container py-4">
 
-                        @php
-                            $blacklisted = \App\Models\BlacklistedDevice::withTrashed()->where('device_id', $device->device_id)->first();
-                        @endphp
-
-                        @if($blacklisted)
-                            @if($blacklisted->trashed())
-                                <form method="POST" action="{{ route('admin.blacklisted_devices.restore', $blacklisted->id) }}" class="d-inline">
-                                    @csrf
-                                    <button type="submit" class="btn btn-sm btn-info">Відновити в ЧС</button>
-                                </form>
-                            @else
-                                <form method="POST" action="{{ route('admin.blacklisted_devices.destroy', $blacklisted) }}" class="d-inline">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-sm btn-danger">Вилучити з ЧС</button>
-                                </form>
-                            @endif
-                        @else
-                            <form method="POST" action="{{ route('admin.blacklisted_devices.store') }}" class="d-inline">
-                                @csrf
-                                <input type="hidden" name="device_id" value="{{ $device->device_id }}" />
-                                <input type="hidden" name="reason" value="Автоматично з пристрою" />
-                                <button type="submit" class="btn btn-sm btn-dark">Додати в ЧС</button>
-                            </form>
-                        @endif
-
-                        @if($device->trashed())
-                        <form method="POST" action="{{ route('admin.devices.restore', $device->id) }}" class="d-inline">
-                            @csrf
-                            <button type="submit" class="btn btn-sm btn-info">Відновити</button>
-                        </form>
-                        @else
-                        <form method="POST" action="{{ route('admin.devices.destroy', $device) }}" class="d-inline">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Впевнені?')">Видалити</button>
-                        </form>
-                        @endif
-                    </td>
-                </tr>
-                @if($device->deviceActions->isNotEmpty())
-                <tr>
-                    <td colspan="6">
-                        <strong>Призначені дії:</strong>
-                        <ul>
-                            @foreach($device->deviceActions as $action)
-                            <li>
-                                {{ $action->action->title ?? $action->action->name }}
-                                (payload: {{ $action->payload ?? '-' }})
-                                <form method="POST" action="{{ route('admin.devices.actions.destroy', ['device' => $device->id, 'deviceAction' => $action->id]) }}" class="d-inline">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-sm btn-danger">Видалити</button>
-                                </form>
-                            </li>
-                            @endforeach
-                        </ul>
-                    </td>
-                </tr>
-                @endif
-                @endforeach
-            </tbody>
-        </table>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">Пристрої</h1>
+        <a href="{{ route('admin.devices.create') }}" class="btn btn-primary">+ Додати пристрій</a>
     </div>
+
+    @if(session('success'))
+        <div class="alert alert-success">{{ session('success') }}</div>
+    @endif
+
+    @php
+        $active  = $devices->whereNull('deleted_at');
+        $deleted = $devices->whereNotNull('deleted_at');
+    @endphp
+
+    {{-- ═══════════════════════════════════════════════════════════════════════ --}}
+    {{-- BLOCK 2: Registered devices grouped by owner → company                 --}}
+    {{-- ═══════════════════════════════════════════════════════════════════════ --}}
+    <h4 class="mb-3">Зареєстровані пристрої ({{ $active->count() }})</h4>
+
+    @php
+        // Group active devices by user (owner), then by company within each owner
+        $grouped = $active->groupBy(fn($d) => $d->user?->name ?? '— Без власника');
+    @endphp
+
+    @forelse($grouped as $ownerName => $ownerDevices)
+    <div class="mb-4">
+        <h6 class="text-muted fw-semibold mb-2 text-uppercase" style="font-size:.75rem;letter-spacing:.05em">
+            {{ $ownerName }}
+        </h6>
+
+        @foreach($ownerDevices->groupBy(fn($d) => $d->company?->name ?? '— Без компанії') as $companyName => $companyDevices)
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center py-2">
+                <span class="fw-semibold">{{ $companyName }}</span>
+                <span class="badge bg-secondary">{{ $companyDevices->count() }} {{ $companyDevices->count() === 1 ? 'пристрій' : ($companyDevices->count() < 5 ? 'пристрої' : 'пристроїв') }}</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:110px">Device ID</th>
+                            <th>Назва</th>
+                            <th style="width:160px">Тип</th>
+                            <th>Дії пристрою</th>
+                            <th class="text-muted small" style="width:120px">Додано</th>
+                            <th style="width:150px"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($companyDevices as $device)
+                        @php
+                            $isBlacklisted = \App\Models\BlacklistedDevice::withTrashed()
+                                ->where('device_id', $device->device_id)->first();
+                            $rangeRaw = $device->getRawOriginal('is_range_start');
+                        @endphp
+                        <tr>
+                            <td>
+                                <code class="small">{{ $device->device_id }}</code>
+                                @if($isBlacklisted && !$isBlacklisted->trashed())
+                                    <span class="badge bg-danger ms-1" title="У чорному списку">ЧС</span>
+                                @endif
+                            </td>
+                            <td class="fw-semibold">{{ $device->name }}</td>
+                            <td>
+                                @if($device->is_on_off)
+                                    <span class="badge bg-warning text-dark">ON/OFF</span>
+                                @elseif($rangeRaw === true || $rangeRaw === 1)
+                                    <span class="badge bg-success">▶ вхід</span>
+                                @elseif($rangeRaw === false || $rangeRaw === 0)
+                                    <span class="badge bg-secondary">■ вихід</span>
+                                @else
+                                    <span class="badge bg-light text-dark border">● одиничний</span>
+                                @endif
+                            </td>
+                            <td>
+                                @if($device->deviceActions->isNotEmpty())
+                                    <div class="d-flex flex-wrap gap-1">
+                                        @foreach($device->deviceActions as $da)
+                                        <span class="badge bg-light text-dark border small d-flex align-items-center gap-1">
+                                            {{ $da->action->title ?? $da->action->name }}
+                                            @if($da->payload)
+                                                <span class="text-muted">({{ $da->payload }})</span>
+                                            @endif
+                                            <form method="POST"
+                                                  action="{{ route('admin.devices.actions.destroy', ['device' => $device->id, 'deviceAction' => $da->id]) }}"
+                                                  class="d-inline m-0 p-0">
+                                                @csrf @method('DELETE')
+                                                <button type="submit"
+                                                        class="btn-close btn-close p-0 ms-1"
+                                                        style="font-size:.55rem"
+                                                        title="Видалити дію"
+                                                        onclick="return confirm('Видалити дію?')"></button>
+                                            </form>
+                                        </span>
+                                        @endforeach
+                                    </div>
+                                @else
+                                    <span class="text-muted small">—</span>
+                                @endif
+                            </td>
+                            <td class="small text-muted text-nowrap">
+                                {{ \Carbon\Carbon::parse($device->created_at)->format('d.m.Y') }}
+                            </td>
+                            <td class="text-end">
+                                <div class="d-flex justify-content-end gap-1">
+                                    <a href="{{ route('admin.devices.edit', $device) }}"
+                                       class="btn btn-sm btn-outline-secondary">Редагувати</a>
+
+                                    @if($isBlacklisted && !$isBlacklisted->trashed())
+                                        <form method="POST" action="{{ route('admin.blacklisted_devices.destroy', $isBlacklisted) }}" class="d-inline">
+                                            @csrf @method('DELETE')
+                                            <button class="btn btn-sm btn-outline-danger" title="Вилучити з чорного списку">Зняти ЧС</button>
+                                        </form>
+                                    @else
+                                        <form method="POST" action="{{ route('admin.blacklisted_devices.store') }}" class="d-inline">
+                                            @csrf
+                                            <input type="hidden" name="device_id" value="{{ $device->device_id }}">
+                                            <input type="hidden" name="reason"    value="Manually blacklisted">
+                                            <button class="btn btn-sm btn-outline-dark" title="Додати в чорний список">ЧС</button>
+                                        </form>
+                                    @endif
+
+                                    <form method="POST" action="{{ route('admin.devices.destroy', $device) }}" class="d-inline">
+                                        @csrf @method('DELETE')
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                onclick="return confirm('Видалити пристрій?')">✕</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        @endforeach
+    </div>
+    @empty
+        <p class="text-muted">Зареєстрованих пристроїв немає.</p>
+    @endforelse
+
+    {{-- ── Deleted devices ──────────────────────────────────────────────────── --}}
+    @if($deleted->isNotEmpty())
+    <div class="mt-4">
+        <h6 class="text-muted fw-semibold mb-2 text-uppercase" style="font-size:.75rem;letter-spacing:.05em">
+            Видалені ({{ $deleted->count() }})
+        </h6>
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Device ID</th>
+                            <th>Назва</th>
+                            <th>Власник</th>
+                            <th>Компанія</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($deleted as $device)
+                        <tr class="text-muted">
+                            <td><code class="small">{{ $device->device_id }}</code></td>
+                            <td class="text-decoration-line-through">{{ $device->name }}</td>
+                            <td class="small">{{ $device->user?->name ?? '—' }}</td>
+                            <td class="small">{{ $device->company?->name ?? '—' }}</td>
+                            <td class="text-end">
+                                <form method="POST" action="{{ route('admin.devices.restore', $device->id) }}" class="d-inline">
+                                    @csrf
+                                    <button class="btn btn-sm btn-outline-success">Відновити</button>
+                                </form>
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    @endif
+
+</div>
 </x-layout>

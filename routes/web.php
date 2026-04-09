@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\TrackedObjectController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -19,7 +20,7 @@ Route::middleware(['auth'])->group(function () {
             return redirect('/admin');
         }
         return redirect('/user');
-    });
+    })->name('dashboard');
 
     Route::prefix('admin')->middleware('can:admin')->group(function () {
         Route::get('/', [AdminController::class, 'index'])->name('admin.index');
@@ -37,6 +38,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/devices/{device}/edit', [AdminController::class, 'editDevice'])->name('admin.devices.edit');
         Route::put('/devices/{device}', [AdminController::class, 'updateDevice'])->name('admin.devices.update');
         Route::delete('/devices/{device}', [AdminController::class, 'destroyDevice'])->name('admin.devices.destroy');
+        Route::post('/devices/{device}/register-objects', [AdminController::class, 'registerDeviceObjects'])->name('admin.devices.register-objects');
         Route::post('/devices/{device}/restore', [AdminController::class, 'restoreDevice'])->name('admin.devices.restore');
 
         // Device actions
@@ -92,6 +94,12 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/tracked-objects/{trackedObject}/edit',        [TrackedObjectController::class, 'edit'])->name('user.tracked-objects.edit');
         Route::put('/tracked-objects/{trackedObject}',             [TrackedObjectController::class, 'update'])->name('user.tracked-objects.update');
         Route::delete('/tracked-objects/{trackedObject}',          [TrackedObjectController::class, 'destroy'])->name('user.tracked-objects.destroy');
+
+        Route::post('/tracked-objects/{trackedObject}/devices',           [TrackedObjectController::class, 'attachDevice'])->name('user.tracked-objects.devices.attach');
+        Route::delete('/tracked-objects/{trackedObject}/devices/{device}', [TrackedObjectController::class, 'detachDevice'])->name('user.tracked-objects.devices.detach');
+
+        Route::get('/devices/{device}',               [DeviceController::class, 'show'])->name('user.devices.show');
+        Route::post('/devices/{device}/send-command', [DeviceController::class, 'sendCommand'])->name('user.devices.send-command');
 
         Route::get('/settings',         [UserController::class, 'settings'])->name('user.settings');
         Route::post('/settings/password',[UserController::class, 'updatePassword'])->name('user.settings.password');

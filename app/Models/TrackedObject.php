@@ -27,6 +27,11 @@ class TrackedObject extends Model
         return $this->belongsTo(Company::class);
     }
 
+    public function devices()
+    {
+        return $this->belongsToMany(Device::class, 'device_tracked_object')->withTimestamps();
+    }
+
     // Всі DeviceLog записи де data = external_id цього об'єкта
     public function logs()
     {

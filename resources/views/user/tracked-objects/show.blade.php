@@ -1,28 +1,33 @@
 <x-layout title="{{ $trackedObject->name }}">
-<div class="container py-4" style="max-width: 900px">
+<div class="container py-4" style="max-width: 960px">
 
-    @if(session('command_sent'))
-        <div class="alert alert-success">{{ session('command_sent') }}</div>
-    @endif
-    @if(session('command_error'))
-        <div class="alert alert-danger">{{ session('command_error') }}</div>
-    @endif
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif
+    @if(session('error'))
+        <div class="alert alert-danger">{{ session('error') }}</div>
+    @endif
 
-    {{-- ── Заголовок ────────────────────────────────────────────────────────── --}}
     @php
     $typeLabels = [
-        'shop'        => '🏪 Магазин / приміщення',
-        'worker'      => '👤 Працівник',
-        'generator'   => '⚡ Генератор',
-        'thermometer' => '🌡️ Термометр',
-        'fridge'      => '🧊 Холодильник',
-        'counter'     => '📊 Лічильник',
-        'other'       => '📦 Інше',
+        'shop'        => 'Магазин / приміщення',
+        'worker'      => 'Працівник',
+        'generator'   => 'Генератор',
+        'thermometer' => 'Термометр',
+        'fridge'      => 'Холодильник',
+        'counter'     => 'Лічильник',
+        'other'       => 'Інше',
     ];
-    $lastLog = $recentLogs->first();
+    $baseUrl = route('user.tracked-objects.show', $trackedObject);
+    $periodLabels = [
+        'today'  => 'Сьогодні',
+        'week'   => 'Тиждень',
+        'month'  => 'Місяць',
+        '3month' => '3 місяці',
+    ];
+    if ($period === 'day' && !empty($customDate)) {
+        $periodLabels['day'] = \Carbon\Carbon::parse($customDate)->format('d.m.Y');
+    }
     @endphp
 
     @if($trackedObject->name === $trackedObject->external_id)
@@ -32,7 +37,8 @@
         </div>
     @endif
 
-    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+    {{-- ── Header ───────────────────────────────────────────────────────────── --}}
+    <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
         <div>
             <h2 class="mb-1">{{ $trackedObject->name }}</h2>
             <span class="badge bg-secondary">{{ $typeLabels[$trackedObject->type] ?? $trackedObject->type }}</span>
@@ -44,12 +50,31 @@
         </div>
     </div>
 
+    {{-- ── Period selector ──────────────────────────────────────────────────── --}}
+    <div class="d-flex align-items-center gap-2 mb-4 flex-wrap">
+        <span class="text-muted small fw-semibold">Період:</span>
+        @foreach($periodLabels as $key => $label)
+            <a href="{{ $baseUrl }}?period={{ $key }}{{ $key === 'day' && !empty($customDate) ? '&date='.$customDate : '' }}"
+               class="btn btn-sm {{ $period === $key ? 'btn-primary' : 'btn-outline-secondary' }}">
+                {{ $label }}
+            </a>
+        @endforeach
+        <input type="date"
+               id="specificDayPicker"
+               class="form-control form-control-sm {{ $period === 'day' ? 'border-primary' : '' }}"
+               style="max-width:155px"
+               value="{{ $customDate ?? '' }}"
+               max="{{ date('Y-m-d') }}"
+               title="Обрати конкретний день"
+               data-base-url="{{ $baseUrl }}">
+    </div>
+
     <div class="row g-4">
 
-        {{-- ── Ліва колонка: інфо + статистика ────────────────────────────── --}}
+        {{-- ── Left column ─────────────────────────────────────────────────── --}}
         <div class="col-lg-4">
 
-            {{-- Контактні дані --}}
+            {{-- Info --}}
             <div class="card mb-3">
                 <div class="card-header fw-semibold">Інформація</div>
                 <div class="card-body p-0">
@@ -99,143 +124,256 @@
                 </div>
             </div>
 
-            {{-- Статистика --}}
+            {{-- Period summary --}}
             <div class="card mb-3">
-                <div class="card-header fw-semibold">Активність</div>
+                <div class="card-header fw-semibold">{{ $periodLabels[$period] ?? $period }}</div>
                 <div class="card-body">
-                    <div class="row text-center g-2">
+                    @if($hasRangePair)
+                        <div class="row text-center g-2 mb-2">
+                            <div class="col-6">
+                                <div class="fs-3 fw-bold text-primary">{{ $periodSummary['sessions'] }}</div>
+                                <div class="small text-muted">{{ $periodSummary['sessions'] === 1 ? 'сеанс' : ($periodSummary['sessions'] < 5 ? 'сеанси' : 'сеансів') }}</div>
+                            </div>
+                            <div class="col-6">
+                                <div class="fs-3 fw-bold text-primary">
+                                    {{ $periodSummary['total_h'] }}г {{ $periodSummary['total_m'] }}хв
+                                </div>
+                                <div class="small text-muted">загалом</div>
+                            </div>
+                        </div>
+                        @if($periodSummary['sessions'] > 0)
+                        <div class="text-center text-muted small">
+                            Середній сеанс:
+                            {{ floor($periodSummary['avg_min'] / 60) }}г {{ $periodSummary['avg_min'] % 60 }}хв
+                        </div>
+                        @endif
+                    @else
+                        <div class="text-center">
+                            <div class="fs-3 fw-bold text-primary">{{ $periodSummary['accesses'] }}</div>
+                            <div class="small text-muted">подій за період</div>
+                        </div>
+                    @endif
+
+                    {{-- All-time quick counters --}}
+                    <hr class="my-3">
+                    <div class="row text-center g-1">
                         <div class="col-4">
-                            <div class="fs-3 fw-bold text-primary">{{ $stats['day'] }}</div>
-                            <div class="small text-muted">добу</div>
+                            <div class="fw-bold">{{ $stats['day'] }}</div>
+                            <div class="small text-muted">доба</div>
                         </div>
                         <div class="col-4">
-                            <div class="fs-3 fw-bold text-primary">{{ $stats['week'] }}</div>
+                            <div class="fw-bold">{{ $stats['week'] }}</div>
                             <div class="small text-muted">тиждень</div>
                         </div>
                         <div class="col-4">
-                            <div class="fs-3 fw-bold text-primary">{{ $stats['month'] }}</div>
+                            <div class="fw-bold">{{ $stats['month'] }}</div>
                             <div class="small text-muted">місяць</div>
                         </div>
                     </div>
-
-                    {{-- Остання подія (динамічно для будь-якого типу) --}}
-                    @if($lastLog)
-                    <hr class="my-2">
-                    <p class="small text-muted mb-1">Остання подія:</p>
-                    <div class="d-flex justify-content-between align-items-baseline">
-                        <span class="fw-semibold">
-                            @if($lastLog->action)
-                                {{ $lastLog->action->title ?? $lastLog->action->name }}
-                            @endif
-                            <code class="ms-1">{{ $lastLog->data }}</code>
-                        </span>
-                        <small class="text-muted text-nowrap ms-2">
-                            {{ \Carbon\Carbon::parse($lastLog->logged_at)->diffForHumans() }}
-                        </small>
-                    </div>
-                    @endif
                 </div>
             </div>
 
-            {{-- Пов'язані пристрої --}}
-            @if($associatedDevices->isNotEmpty())
-            <div class="card">
-                <div class="card-header fw-semibold">Пов'язані пристрої</div>
+            {{-- Attached devices --}}
+            <div class="card mb-3">
+                <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+                    <span>Пристрої</span>
+                    <button class="btn btn-sm btn-outline-primary" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#addDeviceForm">
+                        + Додати
+                    </button>
+                </div>
+
+                {{-- Collapse: attach device form --}}
+                <div class="collapse" id="addDeviceForm">
+                    <div class="card-body border-bottom pb-3">
+                        @if($availableDevices->isNotEmpty())
+                        <form method="POST" action="{{ route('user.tracked-objects.devices.attach', $trackedObject) }}">
+                            @csrf
+                            <div class="d-flex gap-2">
+                                <select name="device_id" class="form-select form-select-sm" required>
+                                    <option value="">— виберіть пристрій —</option>
+                                    @foreach($availableDevices as $dev)
+                                        <option value="{{ $dev->id }}">{{ $dev->name }} <span class="text-muted">({{ $dev->device_id }})</span></option>
+                                    @endforeach
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-primary text-nowrap">Прив'язати</button>
+                            </div>
+                        </form>
+                        @else
+                            <p class="text-muted small mb-0">Усі пристрої компанії вже прив'язані або відсутні.</p>
+                        @endif
+                    </div>
+                </div>
+
+                @if($trackedObject->devices->isNotEmpty())
                 <ul class="list-group list-group-flush">
-                    @foreach($associatedDevices as $device)
-                    <li class="list-group-item py-2 px-3">
-                        <div class="fw-semibold small">{{ $device->name }}</div>
-                        <code class="small text-muted">{{ $device->device_id }}</code>
+                    @foreach($trackedObject->devices as $device)
+                    <li class="list-group-item py-2 px-3 d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="fw-semibold small">{{ $device->name }}</div>
+                            <code class="small text-muted">{{ $device->device_id }}</code>
+                            @php $raw = $device->getRawOriginal('is_range_start'); @endphp
+                            @if($device->is_on_off)
+                                <span class="badge bg-warning text-dark ms-1 small">ON/OFF</span>
+                            @elseif($raw === true || $raw === 1)
+                                <span class="badge bg-light text-dark border ms-1 small">вхід</span>
+                            @elseif($raw === false || $raw === 0)
+                                <span class="badge bg-light text-dark border ms-1 small">вихід</span>
+                            @endif
+                        </div>
+                        <form method="POST" action="{{ route('user.tracked-objects.devices.detach', [$trackedObject, $device]) }}">
+                            @csrf @method('DELETE')
+                            <button type="submit" class="btn btn-sm btn-outline-danger"
+                                    onclick="return confirm('Відв\'язати пристрій?')">✕</button>
+                        </form>
                     </li>
                     @endforeach
                 </ul>
+                @else
+                    <div class="card-body text-muted small">Пристрої не прив'язані.</div>
+                @endif
             </div>
-            @endif
 
         </div>
 
-        {{-- ── Права колонка: керування + події ───────────────────────────── --}}
+        {{-- ── Right column ────────────────────────────────────────────────── --}}
         <div class="col-lg-8">
 
-            {{-- ── ВІДПРАВКА КОМАНД ─────────────────────────────────────────── --}}
-            @if($associatedDevices->isNotEmpty())
-            @foreach($associatedDevices as $device)
-                @if($device->deviceActions->isNotEmpty())
-                <div class="card mb-3">
-                    <div class="card-header fw-semibold d-flex justify-content-between">
-                        <span>Керування: {{ $device->name }}</span>
-                        <code class="small text-muted fw-normal">{{ $device->device_id }}</code>
+            {{-- ── Sessions (range pair) ───────────────────────────────────── --}}
+            @if($hasRangePair)
+                @if($sessions->isEmpty())
+                    <div class="card">
+                        <div class="card-body text-muted">Подій за вибраний період не знайдено.</div>
                     </div>
-                    <div class="card-body">
-                        <div class="row g-2">
-                            @foreach($device->deviceActions as $deviceAction)
-                            <div class="col-md-6">
-                                <div class="border rounded p-2">
-                                    <div class="fw-semibold small mb-1">
-                                        {{ $deviceAction->action->title ?? $deviceAction->action->name }}
-                                    </div>
-                                    @if($deviceAction->action->description)
-                                        <div class="text-muted small mb-2">{{ $deviceAction->action->description }}</div>
-                                    @endif
-                                    <form method="POST" action="{{ route('user.tracked-objects.send-command', $trackedObject) }}"
-                                          class="d-flex gap-1">
-                                        @csrf
-                                        <input type="hidden" name="device_id"   value="{{ $device->id }}">
-                                        <input type="hidden" name="action_name" value="{{ $deviceAction->action->name }}">
-                                        <input type="text" name="data"
-                                               class="form-control form-control-sm"
-                                               placeholder="{{ $deviceAction->payload ?? 'значення...' }}"
-                                               value="{{ $deviceAction->payload ?? '' }}"
-                                               required>
-                                        <button type="submit" class="btn btn-sm btn-primary text-nowrap">
-                                            Надіслати
-                                        </button>
-                                    </form>
-                                </div>
-                            </div>
-                            @endforeach
-                        </div>
-                    </div>
-                </div>
-                @endif
-            @endforeach
-            @endif
-
-            {{-- ── ОСТАННІ ПОДІЇ ────────────────────────────────────────────── --}}
-            <div class="card">
-                <div class="card-header fw-semibold">Останні події ({{ $recentLogs->count() }})</div>
-                @if($recentLogs->isEmpty())
-                    <div class="card-body text-muted">Подій ще не було.</div>
                 @else
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Час</th>
-                                <th>Пристрій</th>
-                                <th>Дія</th>
-                                <th>Data</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($recentLogs as $log)
-                            <tr>
-                                <td class="text-muted small text-nowrap">
-                                    {{ \Carbon\Carbon::parse($log->logged_at)->format('d.m.Y H:i:s') }}
-                                </td>
-                                <td class="small">{{ $log->device?->name ?? '—' }}</td>
-                                <td class="small">{{ $log->action?->title ?? $log->action?->name ?? '—' }}</td>
-                                <td><code class="small">{{ $log->data }}</code></td>
-                            </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+                @php
+                    $sessionsByDay = $sessions->groupBy(fn($s) => \Carbon\Carbon::parse($s['entry_at'])->format('Y-m-d'));
+                @endphp
+                @foreach($sessionsByDay->sortKeysDesc() as $day => $daySessions)
+                @php
+                    $dayLabel    = \Carbon\Carbon::parse($day)->locale('uk')->isoFormat('dddd, D MMMM YYYY');
+                    $dayTotalMin = $daySessions->sum('duration_min');
+                    $dayH        = floor($dayTotalMin / 60);
+                    $dayM        = $dayTotalMin % 60;
+                @endphp
+                <div class="card mb-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span class="fw-semibold">{{ ucfirst($dayLabel) }}</span>
+                        <span class="text-muted small">
+                            {{ $daySessions->count() }} {{ $daySessions->count() === 1 ? 'сеанс' : ($daySessions->count() < 5 ? 'сеанси' : 'сеансів') }}
+                            &nbsp;·&nbsp; {{ $dayH }}г {{ $dayM }}хв
+                        </span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width:120px">Вхід</th>
+                                    <th style="width:120px">Вихід</th>
+                                    <th style="width:110px">Тривалість</th>
+                                    <th class="text-muted small">Пристрій входу</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($daySessions->sortByDesc('entry_at') as $session)
+                                @php
+                                    $h = floor($session['duration_min'] / 60);
+                                    $m = $session['duration_min'] % 60;
+                                @endphp
+                                <tr class="{{ $session['open'] ? 'table-warning' : '' }}">
+                                    <td class="fw-semibold text-nowrap">
+                                        {{ \Carbon\Carbon::parse($session['entry_at'])->format('H:i:s') }}
+                                    </td>
+                                    <td class="text-nowrap">
+                                        @if($session['exit_at'])
+                                            {{ \Carbon\Carbon::parse($session['exit_at'])->format('H:i:s') }}
+                                        @else
+                                            <span class="badge bg-warning text-dark">всередині</span>
+                                        @endif
+                                    </td>
+                                    <td class="text-nowrap">
+                                        @if($h > 0)<span class="fw-semibold">{{ $h }}г</span> @endif
+                                        {{ $m }}хв
+                                        @if($session['open'])
+                                            <span class="text-muted small">(ще)</span>
+                                        @endif
+                                    </td>
+                                    <td class="text-muted small">
+                                        {{ $session['entry_device']?->name ?? '—' }}
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                            @if($daySessions->count() > 1)
+                            <tfoot class="table-light">
+                                <tr>
+                                    <td colspan="2" class="text-end text-muted small pe-2">Разом за день:</td>
+                                    <td class="fw-bold text-nowrap">{{ $dayH }}г {{ $dayM }}хв</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                            @endif
+                        </table>
+                    </div>
                 </div>
+                @endforeach
                 @endif
-            </div>
+
+            {{-- ── Access log (single reader, no pair) ────────────────────── --}}
+            @else
+                @if($periodLogs->isEmpty())
+                    <div class="card">
+                        <div class="card-body text-muted">Подій за вибраний період не знайдено.</div>
+                    </div>
+                @else
+                @php
+                    $logsByDay = $periodLogs->groupBy(fn($l) => \Carbon\Carbon::parse($l->logged_at)->format('Y-m-d'));
+                @endphp
+                @foreach($logsByDay->sortKeysDesc() as $day => $dayLogs)
+                @php
+                    $dayLabel = \Carbon\Carbon::parse($day)->locale('uk')->isoFormat('dddd, D MMMM YYYY');
+                @endphp
+                <div class="card mb-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span class="fw-semibold">{{ ucfirst($dayLabel) }}</span>
+                        <span class="text-muted small">{{ $dayLogs->count() }} подій</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width:130px">Час</th>
+                                    <th>Пристрій</th>
+                                    <th>Дія</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($dayLogs->sortByDesc('logged_at') as $log)
+                                <tr>
+                                    <td class="text-nowrap fw-semibold">
+                                        {{ \Carbon\Carbon::parse($log->logged_at)->format('H:i:s') }}
+                                    </td>
+                                    <td class="small">{{ $log->device?->name ?? '—' }}</td>
+                                    <td class="small text-muted">{{ $log->action?->title ?? $log->action?->name ?? '—' }}</td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                @endforeach
+                @endif
+            @endif
 
         </div>
     </div>
 
 </div>
+<script>
+document.getElementById('specificDayPicker').addEventListener('change', function () {
+    if (this.value) {
+        window.location.href = this.dataset.baseUrl + '?period=day&date=' + this.value;
+    }
+});
+</script>
 </x-layout>

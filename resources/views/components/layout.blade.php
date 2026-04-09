@@ -9,14 +9,12 @@
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
-            <a class="navbar-brand" href="{{ url('/') }}">hashcontrol</a>
-
+            <a class="navbar-brand" href="{{ auth()->check() ? route('dashboard') : url('/') }}">hashcontrol</a>
             <button class="navbar-toggler" type="button"
                 data-bs-toggle="collapse" data-bs-target="#mainNav"
                 aria-controls="mainNav" aria-expanded="false" aria-label="Меню">
                 <span class="navbar-toggler-icon"></span>
             </button>
-
             <div class="collapse navbar-collapse" id="mainNav">
                 @auth
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">

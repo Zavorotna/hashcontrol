@@ -22,6 +22,15 @@
                 <div class="form-text">Якщо два пристрої утворюють пару — дайте їм однакову назву і вкажіть роль.</div>
             </div>
 
+            <div class="mb-3 form-check">
+                <input type="checkbox" class="form-check-input" id="isOnOff" name="is_on_off" value="1"
+                       {{ old('is_on_off') ? 'checked' : '' }}>
+                <label class="form-check-label fw-semibold" for="isOnOff">
+                    Пристрій ON/OFF (генератор, витяжка, реле тощо)
+                </label>
+                <div class="form-text">Позначте, якщо пристрій надсилає <code>on</code>/<code>off</code> у полі data.</div>
+            </div>
+
             <div class="mb-4">
                 <label class="form-label fw-semibold">Роль у діапазоні</label>
                 @php $rangeVal = old('is_range_start', ''); @endphp

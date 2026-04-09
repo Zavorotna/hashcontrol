@@ -21,8 +21,17 @@ class AdminController extends Controller
     // Devices CRUD
     public function devices()
     {
-        $devices = Device::with(['user', 'company', 'deviceActions.action'])->withTrashed()->get();
-        return view('admin.devices.index', compact('devices'));
+        $devices = Device::with(['user', 'company', 'deviceActions.action'])
+            ->withTrashed()
+            ->orderByDesc('created_at')
+            ->get();
+
+        $pendingRequests = MqttMessage::withTrashed()
+            ->whereRaw('NOT EXISTS (SELECT 1 FROM devices WHERE devices.device_id = mqtt_messages.device_id)')
+            ->orderByDesc('created_at')
+            ->get();
+
+        return view('admin.devices.index', compact('devices', 'pendingRequests'));
     }
 
     public function createDevice()
@@ -47,7 +56,7 @@ class AdminController extends Controller
 
         Device::create(array_merge(
             $request->only('device_id', 'name', 'user_id', 'company_id'),
-            ['is_range_start' => $isRangeStart]
+            ['is_range_start' => $isRangeStart, 'is_on_off' => $request->boolean('is_on_off')]
         ));
         return redirect()->route('admin.devices')->with('success', 'Device created');
     }
@@ -57,7 +66,28 @@ class AdminController extends Controller
         $users       = User::where('role', 'user')->get();
         $companies   = Company::all();
         $deviceNames = Device::withTrashed()->pluck('name')->unique()->sort()->values();
-        return view('admin.devices.edit', compact('device', 'users', 'companies', 'deviceNames'));
+
+        // Unique data values from logs + MQTT messages for this device
+        $logDataValues = \App\Models\DeviceLog::where('device_id', $device->id)
+            ->whereNotNull('data')->where('data', '!=', '')
+            ->pluck('data')->unique();
+
+        $mqttDataValues = MqttMessage::withTrashed()
+            ->where('device_id', $device->device_id)
+            ->whereNotNull('data')->where('data', '!=', '')
+            ->pluck('data')->unique();
+
+        $allDataValues = $logDataValues->merge($mqttDataValues)->unique()->sort()->values();
+
+        // Already registered objects for this device's company
+        $registeredExternalIds = $device->company_id
+            ? TrackedObject::where('company_id', $device->company_id)->pluck('external_id')
+            : collect();
+
+        return view('admin.devices.edit', compact(
+            'device', 'users', 'companies', 'deviceNames',
+            'allDataValues', 'registeredExternalIds'
+        ));
     }
 
     public function updateDevice(Request $request, Device $device)
@@ -74,7 +104,7 @@ class AdminController extends Controller
 
         $device->update(array_merge(
             $request->only('device_id', 'name', 'user_id', 'company_id'),
-            ['is_range_start' => $isRangeStart]
+            ['is_range_start' => $isRangeStart, 'is_on_off' => $request->boolean('is_on_off')]
         ));
         return redirect()->route('admin.devices')->with('success', 'Device updated');
     }
@@ -83,6 +113,43 @@ class AdminController extends Controller
     {
         $device->delete();
         return redirect()->route('admin.devices')->with('success', 'Device deleted');
+    }
+
+    public function registerDeviceObjects(Request $request, Device $device)
+    {
+        abort_unless($device->company_id, 422, 'Пристрій не прив\'язаний до компанії.');
+
+        // Validate that checked objects have a non-empty name
+        $objects = $request->input('objects', []);
+        foreach ($objects as $externalId => $objData) {
+            if (empty($objData['register'])) {
+                continue;
+            }
+            if (empty(trim($objData['name'] ?? ''))) {
+                return redirect()->back()
+                    ->withInput()
+                    ->with('error', "Введіть назву для об'єкта «{$externalId}».");
+            }
+        }
+
+        $count = 0;
+        foreach ($objects as $externalId => $objData) {
+            if (empty($objData['register'])) {
+                continue;
+            }
+            $externalId = (string) $externalId;
+            TrackedObject::firstOrCreate(
+                ['external_id' => $externalId, 'company_id' => $device->company_id],
+                [
+                    'name' => trim($objData['name']),
+                    'type' => 'other',
+                ]
+            );
+            $count++;
+        }
+
+        return redirect()->route('admin.devices.edit', $device)
+            ->with('success', "Зареєстровано об'єктів: {$count}");
     }
 
     // Actions CRUD
@@ -338,25 +405,22 @@ class AdminController extends Controller
         return view('admin.users.index', compact('users'));
     }
 
-    public function userDashboard(User $user)
+    public function userDashboard(User $user, \Illuminate\Http\Request $request)
     {
         abort_if($user->role === 'admin', 403);
 
-        $data = app(UserController::class)->getDashboardData($user);
-        return view('user.index', array_merge($data, ['viewingAs' => $user]));
-    }
-
-    public function userDashboard(User $user)
-    {
-        $data = app(UserController::class)->getDashboardData($user);
-        return view('user.index', array_merge($data, ['adminViewingAs' => $user]));
+        $period     = $request->query('period', 'week');
+        $date       = $request->query('date');
+        $deviceView = $request->query('device_view', 'my');
+        $data       = app(UserController::class)->getDashboardData($user, $period, $date, $deviceView);
+        return view('user.index', array_merge($data, ['viewingAs' => $user, 'deviceView' => $deviceView]));
     }
 
     public function destroyUser(User $user)
     {
         abort_if($user->role === 'admin', 403);
 
-        // Відв'язуємо пристрої від власника (не видаляємо самі пристрої)
+        // Detach devices from the owner (devices themselves are not deleted)
         $user->devices()->update(['user_id' => null]);
         $user->companies()->update(['user_id' => null]);
         $user->delete();
@@ -367,8 +431,16 @@ class AdminController extends Controller
     // Existing methods
     public function index()
     {
+        // One row per device_id — latest record wins (active takes priority over soft-deleted)
         $pendingRequests = MqttMessage::withTrashed()
             ->whereRaw('NOT EXISTS (SELECT 1 FROM devices WHERE devices.device_id = mqtt_messages.device_id)')
+            ->whereRaw('mqtt_messages.id = (
+                SELECT id FROM mqtt_messages m2
+                WHERE m2.device_id = mqtt_messages.device_id
+                ORDER BY m2.deleted_at IS NOT NULL, m2.updated_at DESC
+                LIMIT 1
+            )')
+            ->orderByDesc('updated_at')
             ->get();
         $devices = Device::with('user', 'company')->get();
         $actions = Action::all();
@@ -379,19 +451,36 @@ class AdminController extends Controller
     public function showRegisterDeviceForm($id)
     {
         $message           = MqttMessage::findOrFail($id);
-        $users             = User::where('role', 'user')->orderBy('name')->get();
+        $users             = User::where('role', 'user')->orderBy('name')->with('companies')->get();
         $companies         = Company::orderBy('name')->get();
         $actions           = Action::orderBy('title')->orderBy('name')->get();
         $deviceNames       = Device::withTrashed()->pluck('name')->unique()->sort()->values();
         $generatedPassword = Str::random(10);
 
-        return view('admin.register-device', compact('message', 'users', 'companies', 'actions', 'deviceNames', 'generatedPassword'));
+        // All unique data values from all MQTT messages of this device_id
+        $allDataValues = MqttMessage::withTrashed()
+            ->where('device_id', $message->device_id)
+            ->whereNotNull('data')
+            ->where('data', '!=', '')
+            ->pluck('data')
+            ->unique()
+            ->values();
+
+        return view('admin.register-device', compact(
+            'message', 'users', 'companies', 'actions', 'deviceNames', 'generatedPassword',
+            'allDataValues'
+        ));
     }
  
     public function registerDevice(Request $request, $id)
     {
         $message = MqttMessage::findOrFail($id);
  
+        // company_name_select takes priority over company_name text field
+        if ($request->filled('company_name_select')) {
+            $request->merge(['company_name' => $request->input('company_name_select')]);
+        }
+
         $request->validate([
             'owner_email'          => 'required|email',
             'owner_name'           => 'nullable|string',
@@ -400,10 +489,9 @@ class AdminController extends Controller
             'device_name'          => 'nullable|string',
             'actions'              => 'nullable|array',
             'actions.*.action_id'  => 'required|exists:actions,id',
-            'object_name'          => 'nullable|string|max:255',
         ]);
 
-        // ── Визначаємо або створюємо власника ────────────────────────────────
+        // ── Resolve or create the owner ──────────────────────────────────────
         $newUserPassword = null;
         $user = User::where('email', $request->owner_email)->first();
         if (!$user) {
@@ -416,7 +504,7 @@ class AdminController extends Controller
             ]);
         }
 
-        // ── Визначаємо або створюємо компанію (через datalist — просто за назвою) ─
+        // ── Resolve or create the company (via datalist — by name only) ─────
         $company = Company::firstOrCreate(
             ['name' => $request->company_name],
             ['user_id' => $user->id]
@@ -434,7 +522,7 @@ class AdminController extends Controller
                 ->with('success', "Пристрій {$message->device_id} додано до чорного списку");
         }
 
-        // ── Створюємо пристрій ────────────────────────────────────────────────
+        // ── Create the device ────────────────────────────────────────────────
         $rangeRaw     = $request->input('is_range_start');
         $isRangeStart = ($rangeRaw === '' || is_null($rangeRaw)) ? null : (bool)$rangeRaw;
 
@@ -444,9 +532,10 @@ class AdminController extends Controller
             'user_id'        => $user->id,
             'company_id'     => $company->id,
             'is_range_start' => $isRangeStart,
+            'is_on_off'      => $request->boolean('is_on_off'),
         ]);
 
-        // ── Призначаємо дії пристрою ──────────────────────────────────────────
+        // ── Assign actions to the device ─────────────────────────────────────
         if ($request->filled('actions') && is_array($request->actions)) {
             foreach ($request->actions as $actionData) {
                 if (!empty($actionData['action_id'])) {
@@ -459,21 +548,30 @@ class AdminController extends Controller
             }
         }
 
-        // ── Реєструємо об'єкт за значенням data (якщо потрібно) ──────────────
-        if ($request->boolean('register_object') && $message->data) {
+        // ── Register objects from selected data values ───────────────────────
+        $registeredObjectCount = 0;
+        $objects = $request->input('objects', []);
+        foreach ($objects as $externalId => $objData) {
+            if (empty($objData['register'])) {
+                continue;
+            }
+            $externalId = (string) $externalId;
             TrackedObject::firstOrCreate(
-                ['external_id' => $message->data, 'company_id' => $company->id],
+                ['external_id' => $externalId, 'company_id' => $company->id],
                 [
-                    'name'       => $request->object_name ?: $message->data,
-                    'type'       => 'other',
-                    'company_id' => $company->id,
+                    'name'    => ($objData['name'] ?? '') !== '' ? $objData['name'] : $externalId,
+                    'type'    => 'other',
                 ]
             );
+            $registeredObjectCount++;
         }
 
         $message->delete();
 
         $successMsg = "Пристрій зареєстровано → {$user->name} / {$company->name}";
+        if ($registeredObjectCount > 0) {
+            $successMsg .= " | Об'єктів зареєстровано: {$registeredObjectCount}";
+        }
         if ($newUserPassword) {
             $successMsg .= " | Новий користувач створено. Пароль: {$newUserPassword}";
         }

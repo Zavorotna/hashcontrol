@@ -15,10 +15,12 @@ class Device extends Model
         'company_id',
         'name',
         'is_range_start',
+        'is_on_off',
     ];
 
     protected $casts = [
-        'is_range_start' => 'boolean', // null=одиничний, true=початок, false=кінець
+        'is_range_start' => 'boolean', // null=single record, true=range start, false=range end
+        'is_on_off'      => 'boolean', // true=device sends on/off signals (generator, relay, etc.)
     ];
 
     public function user(): BelongsTo
@@ -39,6 +41,11 @@ class Device extends Model
     public function actions()
     {
         return $this->belongsToMany(Action::class, 'device_actions')->withPivot('payload')->withTimestamps();
+    }
+
+    public function trackedObjects()
+    {
+        return $this->belongsToMany(TrackedObject::class, 'device_tracked_object')->withTimestamps();
     }
 
     public function blacklisted()

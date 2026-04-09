@@ -19,10 +19,17 @@
             <label class="form-label fw-semibold">
                 ID об'єкта <small class="text-muted">(поле <code>data</code> з MQTT)</small>
             </label>
-            <input type="text" name="external_id" class="form-control" required
-                placeholder="напр. 203, W001, GEN_MAIN"
-                value="{{ old('external_id', $trackedObject->external_id ?? request('external_id', '')) }}">
-            <div class="form-text">Знайдіть значення в колонці «ID (MQTT)» таблиці подій.</div>
+            @if(isset($trackedObject))
+                <input type="text" class="form-control bg-light" readonly
+                    value="{{ $trackedObject->external_id }}">
+                <input type="hidden" name="external_id" value="{{ $trackedObject->external_id }}">
+                <div class="form-text">ID не можна змінювати після реєстрації об'єкта.</div>
+            @else
+                <input type="text" name="external_id" class="form-control" required
+                    placeholder="напр. 203, W001, GEN_MAIN"
+                    value="{{ old('external_id', request('external_id', '')) }}">
+                <div class="form-text">Знайдіть значення в колонці «ID (MQTT)» таблиці подій.</div>
+            @endif
         </div>
 
         {{-- Тип --}}
