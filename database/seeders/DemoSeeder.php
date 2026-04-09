@@ -172,7 +172,6 @@ class DemoSeeder extends Seeder
             ['external_id' => '303', 'name' => 'Коваль Дмитро Іванович',   'type' => 'worker',
              'phone' => '+380501110003', 'email' => 'koval@alfamoto.ua',    'notes' => 'Автомеханік. Відділ сервісу. Табельний №003'],
         ];
-
         $workerObjects = [];
         foreach ($workers as $w) {
             $workerObjects[] = TrackedObject::firstOrCreate(
