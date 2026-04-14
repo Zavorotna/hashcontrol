@@ -1,7 +1,7 @@
-<x-layout title="Офіси">
+<x-layout title="Об'єкти">
     <div class="container">
-        <h1>Офіси</h1>
-        <a href="{{ route('admin.offices.create') }}" class="btn btn-primary mb-3">Створити офіс</a>
+        <h1>Об'єкти</h1>
+        <a href="{{ route('admin.offices.create') }}" class="btn btn-primary mb-3">Створити об'єкт</a>
         <table class="table">
             <thead>
                 <tr>

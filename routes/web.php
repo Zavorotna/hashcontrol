@@ -17,13 +17,14 @@ Route::post('/logout', [App\Http\Controllers\AuthController::class, 'logout'])->
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', function () {
         if (auth()->user()->role === 'admin') {
-            return redirect('/admin');
+            return redirect()->route('admin.devices');
         }
         return redirect('/user');
     })->name('dashboard');
 
     Route::prefix('admin')->middleware('can:admin')->group(function () {
-        Route::get('/', [AdminController::class, 'index'])->name('admin.index');
+        Route::get('/', fn() => redirect()->route('admin.devices'))->name('admin.index');
+        Route::get('/requests', [AdminController::class, 'index'])->name('admin.requests.index');
         Route::get('/register-device/{id}', [AdminController::class, 'showRegisterDeviceForm'])->name('admin.registerDevice.form');
         Route::post('/register-device/{id}', [AdminController::class, 'registerDevice'])->name('admin.registerDevice');
 
@@ -71,6 +72,7 @@ Route::middleware(['auth'])->group(function () {
 
         // Users
         Route::get('/users', [AdminController::class, 'users'])->name('admin.users');
+        Route::post('/users', [AdminController::class, 'storeUser'])->name('admin.users.store');
         Route::get('/users/{user}/dashboard', [AdminController::class, 'userDashboard'])->name('admin.users.dashboard');
         Route::delete('/users/{user}', [AdminController::class, 'destroyUser'])->name('admin.users.destroy');
 
@@ -100,6 +102,9 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('/devices/{device}',               [DeviceController::class, 'show'])->name('user.devices.show');
         Route::post('/devices/{device}/send-command', [DeviceController::class, 'sendCommand'])->name('user.devices.send-command');
+
+        Route::get('/companies', [UserController::class, 'companies'])->name('user.companies');
+        Route::get('/events',    [UserController::class, 'events'])->name('user.events');
 
         Route::get('/settings',         [UserController::class, 'settings'])->name('user.settings');
         Route::post('/settings/password',[UserController::class, 'updatePassword'])->name('user.settings.password');

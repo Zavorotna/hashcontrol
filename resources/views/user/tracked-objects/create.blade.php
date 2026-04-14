@@ -33,24 +33,25 @@
         </div>
 
         {{-- Тип --}}
+        @php
+        $defaultTypes = ['shop', 'worker', 'generator', 'thermometer', 'fridge', 'counter', 'other'];
+        $typeOptions  = collect($defaultTypes)
+            ->merge($existingTypes ?? [])
+            ->unique()->sort()->values();
+        $currentType  = old('type', $trackedObject->type ?? 'shop');
+        @endphp
         <div class="mb-3">
             <label class="form-label fw-semibold">Тип</label>
-            <select name="type" class="form-select" id="typeSelect">
-                @foreach([
-                    'shop'        => '🏪 Магазин / приміщення',
-                    'worker'      => '👤 Працівник',
-                    'generator'   => '⚡ Генератор',
-                    'thermometer' => '🌡️ Термометр',
-                    'fridge'      => '🧊 Холодильник',
-                    'counter'     => '📊 Лічильник',
-                    'other'       => '📦 Інше',
-                ] as $val => $label)
-                    <option value="{{ $val }}"
-                        {{ old('type', $trackedObject->type ?? 'shop') === $val ? 'selected' : '' }}>
-                        {{ $label }}
-                    </option>
+            <input type="text" name="type" id="typeSelect" class="form-control"
+                   list="type-list" autocomplete="off" required
+                   value="{{ $currentType }}"
+                   placeholder="shop, worker, generator...">
+            <datalist id="type-list">
+                @foreach($typeOptions as $t)
+                    <option value="{{ $t }}">
                 @endforeach
-            </select>
+            </datalist>
+            <div class="form-text">Виберіть зі списку або введіть власний тип.</div>
         </div>
 
         {{-- Назва --}}
@@ -128,26 +129,20 @@
 </div>
 
 <script>
-    const typeSelect  = document.getElementById('typeSelect');
-    const nameLabel   = document.getElementById('nameLabel');
-    const shopFields  = document.querySelectorAll('.shop-field');
-    const workerHide  = document.querySelectorAll('.hide-for-worker');
+    const typeInput  = document.getElementById('typeSelect');
+    const nameLabel  = document.getElementById('nameLabel');
+    const shopFields = document.querySelectorAll('.shop-field');
+    const workerHide = document.querySelectorAll('.hide-for-worker');
 
     function applyType() {
-        const t = typeSelect.value;
-
+        const t = typeInput.value.trim().toLowerCase();
         nameLabel.textContent = t === 'worker' ? 'ПІБ працівника' : 'Назва';
-
-        shopFields.forEach(el => {
-            el.style.display = t === 'shop' ? '' : 'none';
-        });
-
-        workerHide.forEach(el => {
-            el.style.display = t === 'worker' ? 'none' : '';
-        });
+        shopFields.forEach(el => { el.style.display = t === 'shop' ? '' : 'none'; });
+        workerHide.forEach(el => { el.style.display = t === 'worker' ? 'none' : ''; });
     }
 
-    typeSelect.addEventListener('change', applyType);
+    typeInput.addEventListener('input', applyType);
+    typeInput.addEventListener('change', applyType);
     applyType();
 </script>
 </x-layout>

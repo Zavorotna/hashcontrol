@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Company;
 use App\Models\Device;
 use App\Models\DeviceLog;
 use App\Models\TrackedObject;
@@ -26,8 +27,13 @@ class TrackedObjectController extends Controller
 
     public function create()
     {
-        $companies = auth()->user()->companies;
-        return view('user.tracked-objects.create', compact('companies'));
+        $user      = auth()->user();
+        $companies = $user->role === 'admin'
+            ? Company::orderBy('name')->get()
+            : $user->companies;
+        $existingTypes = TrackedObject::whereIn('company_id', $companies->pluck('id'))
+            ->distinct()->orderBy('type')->pluck('type');
+        return view('user.tracked-objects.create', compact('companies', 'existingTypes'));
     }
 
     public function store(Request $request)
@@ -39,7 +45,7 @@ class TrackedObjectController extends Controller
             'external_id' => 'required|string|max:100',
             'company_id'  => 'required|in:' . implode(',', $companyIds),
             'name'        => 'required|string|max:255',
-            'type'        => 'required|in:shop,generator,fridge,counter,worker,thermometer,other',
+            'type'        => 'required|string|max:50',
             'tenant_name' => 'nullable|string|max:255',
             'email'       => 'nullable|email|max:255',
             'phone'       => 'nullable|string|max:50',
@@ -199,8 +205,13 @@ class TrackedObjectController extends Controller
     public function edit(TrackedObject $trackedObject)
     {
         $this->authorizeObject($trackedObject);
-        $companies = auth()->user()->companies;
-        return view('user.tracked-objects.create', compact('trackedObject', 'companies'));
+        $user      = auth()->user();
+        $companies = $user->role === 'admin'
+            ? Company::orderBy('name')->get()
+            : $user->companies;
+        $existingTypes = TrackedObject::whereIn('company_id', $companies->pluck('id'))
+            ->distinct()->orderBy('type')->pluck('type');
+        return view('user.tracked-objects.create', compact('trackedObject', 'companies', 'existingTypes'));
     }
 
     public function update(Request $request, TrackedObject $trackedObject)
@@ -213,7 +224,7 @@ class TrackedObjectController extends Controller
             'external_id' => 'required|string|max:100',
             'company_id'  => 'required|in:' . implode(',', $companyIds),
             'name'        => 'required|string|max:255',
-            'type'        => 'required|in:shop,generator,fridge,counter,worker,thermometer,other',
+            'type'        => 'required|string|max:50',
             'tenant_name' => 'nullable|string|max:255',
             'email'       => 'nullable|email|max:255',
             'phone'       => 'nullable|string|max:50',

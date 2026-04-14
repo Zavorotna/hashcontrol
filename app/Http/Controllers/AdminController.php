@@ -93,7 +93,6 @@ class AdminController extends Controller
     public function updateDevice(Request $request, Device $device)
     {
         $request->validate([
-            'device_id'  => 'required|unique:devices,device_id,' . $device->id,
             'name'       => 'required',
             'user_id'    => 'nullable|exists:users,id',
             'company_id' => 'nullable|exists:companies,id',
@@ -103,7 +102,7 @@ class AdminController extends Controller
         $isRangeStart = ($rangeRaw === '' || is_null($rangeRaw)) ? null : (bool)$rangeRaw;
 
         $device->update(array_merge(
-            $request->only('device_id', 'name', 'user_id', 'company_id'),
+            $request->only('name', 'user_id', 'company_id'),
             ['is_range_start' => $isRangeStart, 'is_on_off' => $request->boolean('is_on_off')]
         ));
         return redirect()->route('admin.devices')->with('success', 'Device updated');
@@ -399,10 +398,41 @@ class AdminController extends Controller
         $users = User::where('role', 'user')
             ->withCount('devices')
             ->with('companies')
-            ->orderBy('name')
-            ->get();
+            ->get()
+            ->sortBy(fn($u) => $u->companies->first()?->name ?? 'я')
+            ->values();
 
-        return view('admin.users.index', compact('users'));
+        $companies = Company::orderBy('name')->get();
+
+        return view('admin.users.index', compact('users', 'companies'));
+    }
+
+    public function storeUser(Request $request)
+    {
+        $request->validate([
+            'name'             => 'required|string|max:255',
+            'email'            => 'required|email|unique:users,email',
+            'phone'            => 'nullable|string|max:50',
+            'password'         => 'required|string|min:6',
+            'company_id'       => 'nullable|exists:companies,id',
+            'new_company_name' => 'nullable|string|max:255',
+        ]);
+
+        $user = User::create([
+            'name'     => $request->name,
+            'email'    => $request->email,
+            'phone'    => $request->phone,
+            'password' => Hash::make($request->password),
+            'role'     => 'user',
+        ]);
+
+        if ($request->filled('company_id')) {
+            Company::where('id', $request->company_id)->update(['user_id' => $user->id]);
+        } elseif ($request->filled('new_company_name')) {
+            Company::create(['name' => $request->new_company_name, 'user_id' => $user->id]);
+        }
+
+        return redirect()->route('admin.users')->with('success', "Користувача {$user->name} створено.");
     }
 
     public function userDashboard(User $user, \Illuminate\Http\Request $request)

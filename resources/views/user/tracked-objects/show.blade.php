@@ -46,7 +46,8 @@
         </div>
         <div class="d-flex gap-2">
             <a href="{{ route('user.tracked-objects.edit', $trackedObject) }}" class="btn btn-outline-secondary btn-sm">Редагувати</a>
-            <a href="{{ route('user.index') }}" class="btn btn-outline-secondary btn-sm">← Назад</a>
+            <a href="{{ route('user.companies') }}?period={{ $period }}{{ !empty($customDate) ? '&date='.$customDate : '' }}"
+               class="btn btn-outline-secondary btn-sm">← Назад</a>
         </div>
     </div>
 
@@ -193,7 +194,7 @@
                                 <select name="device_id" class="form-select form-select-sm" required>
                                     <option value="">— виберіть пристрій —</option>
                                     @foreach($availableDevices as $dev)
-                                        <option value="{{ $dev->id }}">{{ $dev->name }} <span class="text-muted">({{ $dev->device_id }})</span></option>
+                                        <option value="{{ $dev->id }}">{{ $dev->name }}</option>
                                     @endforeach
                                 </select>
                                 <button type="submit" class="btn btn-sm btn-primary text-nowrap">Прив'язати</button>
@@ -211,7 +212,6 @@
                     <li class="list-group-item py-2 px-3 d-flex justify-content-between align-items-center">
                         <div>
                             <div class="fw-semibold small">{{ $device->name }}</div>
-                            <code class="small text-muted">{{ $device->device_id }}</code>
                             @php $raw = $device->getRawOriginal('is_range_start'); @endphp
                             @if($device->is_on_off)
                                 <span class="badge bg-warning text-dark ms-1 small">ON/OFF</span>

@@ -10,6 +10,63 @@
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif
 
+    {{-- ── Pending device requests ─────────────────────────────────────────── --}}
+    @if($pendingRequests->isNotEmpty())
+    <div class="card mb-4 border-warning">
+        <div class="card-header bg-warning bg-opacity-10 fw-semibold">
+            Очікують реєстрації ({{ $pendingRequests->count() }})
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Device ID</th>
+                        <th>Дія</th>
+                        <th>Data</th>
+                        <th>Час</th>
+                        <th style="width:200px"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($pendingRequests as $req)
+                    <tr class="{{ $req->trashed() ? 'text-muted' : '' }}">
+                        <td><code>{{ $req->device_id }}</code></td>
+                        <td class="small">{{ $req->action ?? '—' }}</td>
+                        <td><code class="small">{{ $req->data }}</code></td>
+                        <td class="small text-muted text-nowrap">{{ $req->updated_at->format('d.m H:i') }}</td>
+                        <td>
+                            @if($req->trashed())
+                                <form method="POST" action="{{ route('admin.requests.restore', $req->id) }}" class="d-inline">
+                                    @csrf
+                                    <button class="btn btn-sm btn-info">Відновити</button>
+                                </form>
+                            @else
+                                <div class="d-flex gap-1">
+                                    <a href="{{ route('admin.registerDevice.form', $req->id) }}"
+                                       class="btn btn-sm btn-primary">Реєстрація</a>
+                                    <form method="POST" action="{{ route('admin.blacklisted_devices.store') }}" class="d-inline">
+                                        @csrf
+                                        <input type="hidden" name="device_id" value="{{ $req->device_id }}">
+                                        <input type="hidden" name="reason" value="Додано з панелі запитів">
+                                        <button class="btn btn-sm btn-dark"
+                                            onclick="return confirm('Додати {{ $req->device_id }} до ігнор-списку?')">Ігнор</button>
+                                    </form>
+                                    <form method="POST" action="{{ route('admin.requests.destroy', $req->id) }}" class="d-inline">
+                                        @csrf @method('DELETE')
+                                        <button class="btn btn-sm btn-outline-danger"
+                                            onclick="return confirm('Видалити запит?')">✕</button>
+                                    </form>
+                                </div>
+                            @endif
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+    @endif
+
     @php
         $active  = $devices->whereNull('deleted_at');
         $deleted = $devices->whereNotNull('deleted_at');

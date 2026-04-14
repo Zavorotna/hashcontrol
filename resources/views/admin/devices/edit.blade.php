@@ -13,8 +13,7 @@
             @method('PUT')
             <div class="mb-3">
                 <label class="form-label">Device ID</label>
-                <input type="text" name="device_id" class="form-control"
-                       value="{{ old('device_id', $device->device_id) }}" required>
+                <input type="text" class="form-control bg-light" readonly value="{{ $device->device_id }}">
             </div>
             <div class="mb-3">
                 <label class="form-label">Назва</label>

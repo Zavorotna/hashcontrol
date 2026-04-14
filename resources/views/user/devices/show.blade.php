@@ -43,7 +43,6 @@
         <div>
             <h2 class="mb-1">{{ $device->name }}</h2>
             <span class="badge {{ $typeBadge }}">{{ $typeLabel }}</span>
-            <code class="ms-2 text-muted small">ID: {{ $device->device_id }}</code>
             @if($device->company)
                 <span class="text-muted small ms-2">· {{ $device->company->name }}</span>
             @endif
@@ -182,23 +181,6 @@
                 </div>
             </div>
 
-            {{-- Assigned actions info ────────────────────────────────────────── --}}
-            @if($device->deviceActions->isNotEmpty())
-            <div class="card">
-                <div class="card-header fw-semibold small">Зареєстровані дії</div>
-                <ul class="list-group list-group-flush">
-                    @foreach($device->deviceActions as $da)
-                    <li class="list-group-item py-2 px-3 small">
-                        <span class="fw-semibold">{{ $da->action->title ?? $da->action->name }}</span>
-                        <code class="ms-1 text-muted">act={{ $da->action->name }}</code>
-                        @if($da->payload)
-                            <span class="text-muted"> · payload: {{ $da->payload }}</span>
-                        @endif
-                    </li>
-                    @endforeach
-                </ul>
-            </div>
-            @endif
 
         </div>
 

@@ -8,17 +8,36 @@ use App\Models\TrackedObject;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
+    // ── Page controllers ─────────────────────────────────────────────────────
+
     public function index(Request $request)
     {
-        $period      = $request->query('period', 'week');
-        $date        = $request->query('date');
-        $deviceView  = $request->query('device_view', 'my'); // 'my' or 'all'
-        $data        = $this->getDashboardData(auth()->user(), $period, $date, $deviceView);
+        $period     = $request->query('period', 'week');
+        $date       = $request->query('date');
+        $deviceView = $request->query('device_view', 'my');
+        $data       = $this->getDevicesPageData(auth()->user(), $period, $date, $deviceView);
         return view('user.index', array_merge($data, ['deviceView' => $deviceView]));
+    }
+
+    public function companies(Request $request)
+    {
+        $period = $request->query('period', 'week');
+        $date   = $request->query('date');
+        $data   = $this->getCompaniesPageData(auth()->user(), $period, $date);
+        return view('user.companies', $data);
+    }
+
+    public function events(Request $request)
+    {
+        $period = $request->query('period', 'week');
+        $date   = $request->query('date');
+        $data   = $this->getEventsPageData(auth()->user(), $period, $date);
+        return view('user.events', $data);
     }
 
     public function settings()
@@ -31,11 +50,6 @@ class UserController extends Controller
         $request->validate([
             'current_password' => 'required|string',
             'password'         => 'required|string|min:6|confirmed',
-        ], [
-            'current_password.required' => 'Введіть поточний пароль.',
-            'password.required'         => 'Введіть новий пароль.',
-            'password.min'              => 'Пароль має бути не менше 6 символів.',
-            'password.confirmed'        => 'Паролі не співпадають.',
         ]);
 
         $user = auth()->user();
@@ -45,11 +59,12 @@ class UserController extends Controller
         }
 
         $user->update(['password' => Hash::make($request->password)]);
-
         return back()->with('success', 'Пароль успішно змінено.');
     }
 
-    public function getDashboardData(User $user, string $period = 'week', ?string $customDate = null, string $deviceView = 'my'): array
+    // ── Period helper ─────────────────────────────────────────────────────────
+
+    private function parsePeriod(string $period, ?string $customDate): array
     {
         if ($period === 'day' && $customDate) {
             $since = Carbon::parse($customDate)->startOfDay();
@@ -63,100 +78,154 @@ class UserController extends Controller
             };
             $until = now();
         }
+        return [$since, $until];
+    }
+
+    // Whether the period exceeds 30 days (needs archive)
+    private function needsArchive(Carbon $since): bool
+    {
+        return $since->lt(now()->subDays(30));
+    }
+
+    // Query builder that unions device_logs + archive when needed
+    private function logQuery(Carbon $since): \Illuminate\Database\Query\Builder
+    {
+        $main = DB::table('device_logs');
+
+        if ($this->needsArchive($since)) {
+            $archive = DB::table('device_logs_archive');
+            return DB::query()->fromSub(
+                $main->union($archive),
+                'dlogs'
+            );
+        }
+
+        return $main;
+    }
+
+    // ── Devices page data ─────────────────────────────────────────────────────
+
+    public function getDevicesPageData(User $user, string $period = 'week', ?string $customDate = null, string $deviceView = 'my'): array
+    {
+        [$since, $until] = $this->parsePeriod($period, $customDate);
+
+        $companies  = $user->companies()->get();
+        $companyIds = $companies->pluck('id');
+
+        $devices = $deviceView === 'all'
+            ? Device::whereIn('id',
+                TrackedObject::whereIn('company_id', $companyIds)
+                    ->with('devices')->get()
+                    ->flatMap(fn($o) => $o->devices->pluck('id'))->unique()
+                )->with('deviceActions.action')->orderByDesc('created_at')->get()
+            : $user->devices()->with('deviceActions.action')->orderByDesc('created_at')->get();
+
+        $deviceIds = $devices->pluck('id');
+
+        // Per-device stats
+        $deviceStats = [];
+        foreach ($devices as $device) {
+            $lastLog = DeviceLog::where('device_id', $device->id)->latest('logged_at')->first();
+            $deviceStats[$device->id] = [
+                'period_count' => $this->logQuery($since)
+                    ->where('device_id', $device->id)
+                    ->whereBetween('logged_at', [$since, $until])
+                    ->count(),
+                'last_at'   => $lastLog?->logged_at,
+                'last_data' => $lastLog?->data,
+            ];
+        }
+
+        // ON/OFF stats
+        $onOffStats   = $this->buildOnOffStats($devices, $since, $until, $companyIds);
+
+        $periodLabels = $this->periodLabels($period, $customDate);
+
+        return compact('devices', 'deviceStats', 'onOffStats', 'period', 'customDate', 'since', 'until', 'periodLabels');
+    }
+
+    // ── Companies page data ───────────────────────────────────────────────────
+
+    public function getCompaniesPageData(User $user, string $period = 'week', ?string $customDate = null): array
+    {
+        [$since, $until] = $this->parsePeriod($period, $customDate);
 
         $companies  = $user->companies()->with('offices')->get();
         $companyIds = $companies->pluck('id');
-
-        if ($deviceView === 'all') {
-            // All devices linked to tracked objects of user's companies
-            $objectDeviceIds = \App\Models\TrackedObject::whereIn('company_id', $companyIds)
-                ->with('devices')
-                ->get()
-                ->flatMap(fn($obj) => $obj->devices->pluck('id'))
-                ->unique();
-            $devices = \App\Models\Device::whereIn('id', $objectDeviceIds)
-                ->with('deviceActions.action')
-                ->orderByDesc('created_at')
-                ->get();
-        } else {
-            // My devices: directly assigned to the user
-            $devices = $user->devices()->with('deviceActions.action')->orderByDesc('created_at')->get();
-        }
-
-        $deviceIds  = $devices->pluck('id');
-
         $allObjects = TrackedObject::whereIn('company_id', $companyIds)->get();
 
-        // Only reader devices (is_range_start IS NOT NULL, is_on_off = false) log
-        // object external_ids as their data value.
-        // ON/OFF devices send 'on'/'off'; measurement devices (thermometers, counters)
-        // send sensor readings — neither should appear as unregistered objects.
-        $readerDeviceIds = Device::whereIn('id', $deviceIds)
-            ->where('is_on_off', false)
-            ->whereNotNull('is_range_start')
-            ->pluck('id');
+        // Unregistered data IDs (from reader devices)
+        $readerDeviceIds = Device::where('user_id', $user->id)
+            ->where('is_on_off', false)->whereNotNull('is_range_start')->pluck('id');
 
-        $allDataIds = DeviceLog::whereIn('device_id', $readerDeviceIds)
-            ->select('data')->distinct()->orderBy('data')->pluck('data');
+        $allDataIds = $this->logQuery($since)
+            ->whereIn('device_id', $readerDeviceIds)
+            ->distinct()->orderBy('data')->pluck('data');
 
         $unregisteredDataIds = $allDataIds->diff($allObjects->pluck('external_id'))->values();
 
-        // Per-object stats for selected period
+        // Object stats
         $objectStats = [];
         foreach ($allObjects as $obj) {
-            $lastLog = DeviceLog::where('data', $obj->external_id)
-                ->with('action')
-                ->latest('logged_at')
-                ->first();
-
+            $lastLog = DeviceLog::where('data', $obj->external_id)->latest('logged_at')->first();
             $objectStats[$obj->id] = [
-                'period'      => DeviceLog::where('data', $obj->external_id)->whereBetween('logged_at', [$since, $until])->count(),
-                'day'         => DeviceLog::where('data', $obj->external_id)->where('logged_at', '>=', now()->subDay())->count(),
-                'week'        => DeviceLog::where('data', $obj->external_id)->where('logged_at', '>=', now()->subWeek())->count(),
-                'month'       => DeviceLog::where('data', $obj->external_id)->where('logged_at', '>=', now()->subMonth())->count(),
+                'period'      => $this->logQuery($since)->where('data', $obj->external_id)->whereBetween('logged_at', [$since, $until])->count(),
                 'last_data'   => $lastLog?->data,
-                'last_action' => $lastLog?->action?->title ?? $lastLog?->action?->name,
+                'last_action' => null, // loaded separately if needed
                 'last_at'     => $lastLog?->logged_at,
             ];
         }
 
         $objectsByCompany = $allObjects->groupBy('company_id');
+        $periodLabels     = $this->periodLabels($period, $customDate);
 
-        // Per-device stats for selected period
-        $deviceStats = [];
-        foreach ($devices as $device) {
-            $count = DeviceLog::where('device_id', $device->id)
-                ->whereBetween('logged_at', [$since, $until])
-                ->count();
+        return compact('companies', 'allObjects', 'objectsByCompany', 'objectStats',
+            'unregisteredDataIds', 'period', 'customDate', 'since', 'until', 'periodLabels');
+    }
 
-            $lastLog = DeviceLog::where('device_id', $device->id)
-                ->latest('logged_at')
-                ->first();
+    // ── Events page data ──────────────────────────────────────────────────────
 
-            $deviceStats[$device->id] = [
-                'period_count' => $count,
-                'last_at'      => $lastLog?->logged_at,
-                'last_data'    => $lastLog?->data,
-            ];
-        }
+    public function getEventsPageData(User $user, string $period = 'week', ?string $customDate = null): array
+    {
+        [$since, $until] = $this->parsePeriod($period, $customDate);
 
-        // ON/OFF cross-stats
-        $onOffStats = [];
+        $deviceIds  = $user->devices()->pluck('id');
+        $companyIds = $user->companies()->pluck('id');
+        $allObjects = TrackedObject::whereIn('company_id', $companyIds)->get();
+
+        $logs = DeviceLog::whereIn('device_id', $deviceIds)
+            ->with(['device', 'action'])
+            ->whereBetween('logged_at', [$since, $until])
+            ->latest('logged_at')
+            ->paginate(100)
+            ->through(function ($log) use ($allObjects) {
+                $log->tracked_object = $allObjects->firstWhere('external_id', $log->data);
+                return $log;
+            });
+
+        $periodLabels = $this->periodLabels($period, $customDate);
+
+        return compact('logs', 'period', 'customDate', 'since', 'until', 'periodLabels');
+    }
+
+    // ── ON/OFF stats builder ──────────────────────────────────────────────────
+
+    private function buildOnOffStats($devices, Carbon $since, Carbon $until, $companyIds): array
+    {
+        $onOffStats   = [];
         $onOffDevices = $devices->where('is_on_off', true);
+        $allObjects   = TrackedObject::whereIn('company_id', $companyIds)->get();
 
         foreach ($onOffDevices as $device) {
             $logs = DeviceLog::where('device_id', $device->id)
                 ->whereIn('data', ['on', 'off'])
                 ->whereBetween('logged_at', [$since, $until])
-                ->orderBy('logged_at')
-                ->get();
+                ->orderBy('logged_at')->get();
 
-            // Check if device was ON before the period start
             $lastBefore = DeviceLog::where('device_id', $device->id)
                 ->whereIn('data', ['on', 'off'])
                 ->where('logged_at', '<', $since)
-                ->latest('logged_at')
-                ->first();
+                ->latest('logged_at')->first();
 
             $intervals      = [];
             $onAt           = ($lastBefore && $lastBefore->data === 'on') ? $since : null;
@@ -166,77 +235,209 @@ class UserController extends Controller
                 if ($log->data === 'on' && $onAt === null) {
                     $onAt = $log->logged_at;
                 } elseif ($log->data === 'off' && $onAt !== null) {
-                    $intervals[]     = [$onAt, $log->logged_at];
+                    $intervals[]     = [Carbon::parse($onAt), Carbon::parse($log->logged_at)];
                     $totalOnSeconds += Carbon::parse($onAt)->diffInSeconds($log->logged_at);
                     $onAt            = null;
                 }
             }
-
-            // Device is currently ON (open interval — close it at period end)
             if ($onAt !== null) {
-                $intervals[]     = [$onAt, $until];
+                $intervals[]     = [Carbon::parse($onAt), $until->copy()];
                 $totalOnSeconds += Carbon::parse($onAt)->diffInSeconds($until);
+            }
+
+            // Skip if device never turned on during this period
+            if (empty($intervals)) {
+                continue;
             }
 
             $periodSeconds = $since->diffInSeconds($until);
             $onPercent     = $periodSeconds > 0 ? round($totalOnSeconds / $periodSeconds * 100) : 0;
 
-            // Last known state
             $lastStateLog = DeviceLog::where('device_id', $device->id)
-                ->whereIn('data', ['on', 'off'])
-                ->latest('logged_at')
-                ->first();
+                ->whereIn('data', ['on', 'off'])->latest('logged_at')->first();
             $currentState = $lastStateLog?->data ?? 'unknown';
 
-            // Cross-stats: events per tracked object during ON intervals
+            // Cross-stats with intersection time
             $crossStats = [];
             if ($device->company_id) {
                 $companyObjects = $allObjects->where('company_id', $device->company_id);
+
+                // Get range-pair device IDs for this company
+                $entryIds = Device::where('company_id', $device->company_id)->where('is_range_start', true)->pluck('id');
+                $exitIds  = Device::where('company_id', $device->company_id)->where('is_range_start', false)->pluck('id');
+                $hasPair  = $entryIds->isNotEmpty() && $exitIds->isNotEmpty();
 
                 foreach ($companyObjects as $obj) {
                     $duringOn = 0;
                     foreach ($intervals as [$start, $end]) {
                         $duringOn += DeviceLog::where('data', $obj->external_id)
-                            ->whereBetween('logged_at', [$start, $end])
-                            ->count();
+                            ->whereBetween('logged_at', [$start, $end])->count();
                     }
 
-                    $total = $objectStats[$obj->id]['period'] ?? 0;
+                    // Skip objects with no events during ON time
+                    if ($duringOn === 0) {
+                        continue;
+                    }
+
+                    $total = DeviceLog::where('data', $obj->external_id)
+                        ->whereBetween('logged_at', [$since, $until])->count();
+
+                    // Intersection time (overlap of object sessions with ON intervals)
+                    $overlapMinutes = null;
+                    if ($hasPair) {
+                        $objLogs = DeviceLog::where('data', $obj->external_id)
+                            ->whereBetween('logged_at', [$since, $until])
+                            ->whereIn('device_id', $entryIds->merge($exitIds))
+                            ->orderBy('logged_at')->get();
+
+                        $sessions = $this->buildSimpleSessions($objLogs, $entryIds, $exitIds, $until);
+                        $overlapSeconds = $this->intersectIntervals($sessions, $intervals);
+                        $overlapMinutes = (int) round($overlapSeconds / 60);
+                    }
 
                     $crossStats[] = [
-                        'object'    => $obj,
-                        'during_on' => $duringOn,
-                        'total'     => $total,
-                        'percent'   => $total > 0 ? round($duringOn / $total * 100) : null,
+                        'object'          => $obj,
+                        'during_on'       => $duringOn,
+                        'total'           => $total,
+                        'percent'         => $total > 0 ? round($duringOn / $total * 100) : null,
+                        'overlap_minutes' => $overlapMinutes,
                     ];
                 }
             }
+
+            $h = floor($totalOnSeconds / 3600);
+            $m = floor(($totalOnSeconds % 3600) / 60);
 
             $onOffStats[] = [
                 'device'        => $device,
                 'current_state' => $currentState,
                 'total_on_sec'  => $totalOnSeconds,
+                'on_h'          => $h,
+                'on_m'          => $m,
                 'on_percent'    => $onPercent,
                 'cross_stats'   => $crossStats,
             ];
         }
 
+        return $onOffStats;
+    }
+
+    private function buildSimpleSessions($logs, $entryIds, $exitIds, Carbon $until): array
+    {
+        $sessions  = [];
+        $openEntry = null;
+
+        foreach ($logs as $log) {
+            if ($entryIds->contains($log->device_id)) {
+                $openEntry = Carbon::parse($log->logged_at);
+            } elseif ($exitIds->contains($log->device_id) && $openEntry !== null) {
+                $sessions[] = [$openEntry, Carbon::parse($log->logged_at)];
+                $openEntry  = null;
+            }
+        }
+        if ($openEntry !== null) {
+            $sessions[] = [$openEntry, $until->copy()];
+        }
+
+        return $sessions;
+    }
+
+    // Compute total intersection seconds between two sets of intervals
+    private function intersectIntervals(array $sessions, array $onIntervals): int
+    {
+        $total = 0;
+        foreach ($sessions as [$sStart, $sEnd]) {
+            foreach ($onIntervals as [$oStart, $oEnd]) {
+                $start = max($sStart->timestamp, $oStart->timestamp);
+                $end   = min($sEnd->timestamp, $oEnd->timestamp);
+                if ($end > $start) {
+                    $total += $end - $start;
+                }
+            }
+        }
+        return $total;
+    }
+
+    private function periodLabels(string $period, ?string $customDate): array
+    {
+        $labels = [
+            'today'  => 'Сьогодні',
+            'week'   => 'Тиждень',
+            'month'  => 'Місяць',
+            '3month' => '3 місяці',
+        ];
+        if ($period === 'day' && $customDate) {
+            $labels['day'] = Carbon::parse($customDate)->format('d.m.Y');
+        }
+        return $labels;
+    }
+
+    // ── Admin viewing a user dashboard ────────────────────────────────────────
+
+    public function getDashboardData(User $user, string $period = 'week', ?string $customDate = null, string $deviceView = 'my'): array
+    {
+        [$since, $until] = $this->parsePeriod($period, $customDate);
+
+        $companies  = $user->companies()->with('offices')->get();
+        $companyIds = $companies->pluck('id');
+
+        $devices = $deviceView === 'all'
+            ? Device::whereIn('id',
+                TrackedObject::whereIn('company_id', $companyIds)
+                    ->with('devices')->get()
+                    ->flatMap(fn($o) => $o->devices->pluck('id'))->unique()
+                )->with('deviceActions.action')->orderByDesc('created_at')->get()
+            : $user->devices()->with('deviceActions.action')->orderByDesc('created_at')->get();
+
+        $deviceIds  = $devices->pluck('id');
+        $allObjects = TrackedObject::whereIn('company_id', $companyIds)->get();
+
+        $readerDeviceIds = Device::whereIn('id', $deviceIds)
+            ->where('is_on_off', false)->whereNotNull('is_range_start')->pluck('id');
+
+        $allDataIds          = DeviceLog::whereIn('device_id', $readerDeviceIds)->select('data')->distinct()->orderBy('data')->pluck('data');
+        $unregisteredDataIds = $allDataIds->diff($allObjects->pluck('external_id'))->values();
+
+        $objectStats = [];
+        foreach ($allObjects as $obj) {
+            $lastLog = DeviceLog::where('data', $obj->external_id)->latest('logged_at')->first();
+            $objectStats[$obj->id] = [
+                'period'      => DeviceLog::where('data', $obj->external_id)->whereBetween('logged_at', [$since, $until])->count(),
+                'last_data'   => $lastLog?->data,
+                'last_action' => $lastLog?->action?->title ?? $lastLog?->action?->name,
+                'last_at'     => $lastLog?->logged_at,
+            ];
+        }
+
+        $objectsByCompany = $allObjects->groupBy('company_id');
+
+        $deviceStats = [];
+        foreach ($devices as $device) {
+            $lastLog = DeviceLog::where('device_id', $device->id)->latest('logged_at')->first();
+            $deviceStats[$device->id] = [
+                'period_count' => DeviceLog::where('device_id', $device->id)->whereBetween('logged_at', [$since, $until])->count(),
+                'last_at'      => $lastLog?->logged_at,
+                'last_data'    => $lastLog?->data,
+            ];
+        }
+
+        $onOffStats = $this->buildOnOffStats($devices, $since, $until, $companyIds);
+
         $logs = DeviceLog::whereIn('device_id', $deviceIds)
             ->with(['device', 'action'])
             ->whereBetween('logged_at', [$since, $until])
-            ->latest('logged_at')
-            ->take(50)
-            ->get()
+            ->latest('logged_at')->take(50)->get()
             ->map(function ($log) use ($allObjects) {
                 $log->tracked_object = $allObjects->firstWhere('external_id', $log->data);
                 return $log;
             });
 
+        $periodLabels = $this->periodLabels($period, $customDate);
+
         return compact(
-            'companies', 'devices', 'logs', 'period', 'since', 'until', 'customDate',
-            'objectsByCompany', 'allObjects',
-            'objectStats', 'deviceStats', 'onOffStats',
-            'unregisteredDataIds', 'allDataIds',
+            'companies', 'devices', 'logs', 'period', 'customDate', 'since', 'until',
+            'objectsByCompany', 'allObjects', 'objectStats', 'deviceStats', 'onOffStats',
+            'unregisteredDataIds', 'allDataIds', 'periodLabels'
         );
     }
 }
