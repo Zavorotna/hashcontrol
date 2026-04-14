@@ -28,6 +28,11 @@ class AdminController extends Controller
 
         $pendingRequests = MqttMessage::withTrashed()
             ->whereRaw('NOT EXISTS (SELECT 1 FROM devices WHERE devices.device_id = mqtt_messages.device_id)')
+            ->whereIn('id', function ($q) {
+                $q->selectRaw('MAX(id)')
+                  ->from('mqtt_messages')
+                  ->groupBy('device_id');
+            })
             ->orderByDesc('created_at')
             ->get();
 
