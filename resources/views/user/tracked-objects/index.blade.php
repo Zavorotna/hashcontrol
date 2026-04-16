@@ -14,13 +14,13 @@
         @forelse($objects->groupBy('type') as $type => $group)
             <h5 class="mt-4">
                 @switch($type)
-                    @case('shop')        🏪 Магазини / приміщення @break
-                    @case('worker')      👤 Працівники @break
-                    @case('generator')   ⚡ Генератори @break
-                    @case('thermometer') 🌡️ Термометри @break
-                    @case('fridge')      🧊 Холодильники @break
-                    @case('counter')     📊 Лічильники @break
-                    @default             📦 Інше @break
+                    @case('shop')        Магазини / приміщення @break
+                    @case('worker')      Працівники @break
+                    @case('generator')   Генератори @break
+                    @case('thermometer') Термометри @break
+                    @case('fridge')      Холодильники @break
+                    @case('counter')     Лічильники @break
+                    @default             Інше @break
                 @endswitch
             </h5>
 

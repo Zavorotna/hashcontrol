@@ -109,11 +109,15 @@ class UserController extends Controller
         [$since, $until] = $this->parsePeriod($period, $customDate);
 
         $companies  = $user->companies()->get();
-        $companyIds = $companies->pluck('id');
+        $companyIds = $companies->modelKeys();
 
-        $devices = $deviceView === 'all'
-            ? Device::whereIn('company_id', $companyIds)->with('deviceActions.action')->orderByDesc('created_at')->get()
-            : $user->devices()->with('deviceActions.action')->orderByDesc('created_at')->get();
+        $devices = Device::where(function ($q) use ($user, $companyIds) {
+                $q->where('user_id', $user->id)
+                  ->orWhereIn('company_id', $companyIds);
+            })
+            ->with('deviceActions.action')
+            ->orderByDesc('created_at')
+            ->get();
 
         $deviceIds = $devices->pluck('id');
 
@@ -146,7 +150,7 @@ class UserController extends Controller
         [$since, $until] = $this->parsePeriod($period, $customDate);
 
         $companies  = $user->companies()->with('offices')->get();
-        $companyIds = $companies->pluck('id');
+        $companyIds = $companies->modelKeys();
         $allObjects = TrackedObject::whereIn('company_id', $companyIds)->get();
 
         // Unregistered data IDs (from reader devices)
@@ -184,9 +188,11 @@ class UserController extends Controller
     {
         [$since, $until] = $this->parsePeriod($period, $customDate);
 
-        $deviceIds  = $user->devices()->pluck('id');
-        $companyIds = $user->companies()->pluck('id');
+        $companyIds = $user->companies()->pluck('companies.id');
         $allObjects = TrackedObject::whereIn('company_id', $companyIds)->get();
+        $deviceIds  = Device::where(function ($q) use ($user, $companyIds) {
+            $q->where('user_id', $user->id)->orWhereIn('company_id', $companyIds);
+        })->pluck('id');
 
         $logs = DeviceLog::whereIn('device_id', $deviceIds)
             ->with(['device', 'action'])
@@ -374,15 +380,15 @@ class UserController extends Controller
         [$since, $until] = $this->parsePeriod($period, $customDate);
 
         $companies  = $user->companies()->with('offices')->get();
-        $companyIds = $companies->pluck('id');
+        $companyIds = $companies->modelKeys();
 
-        $devices = $deviceView === 'all'
-            ? Device::whereIn('id',
-                TrackedObject::whereIn('company_id', $companyIds)
-                    ->with('devices')->get()
-                    ->flatMap(fn($o) => $o->devices->pluck('id'))->unique()
-                )->with('deviceActions.action')->orderByDesc('created_at')->get()
-            : $user->devices()->with('deviceActions.action')->orderByDesc('created_at')->get();
+        $devices = Device::where(function ($q) use ($user, $companyIds) {
+                $q->where('user_id', $user->id)
+                  ->orWhereIn('company_id', $companyIds);
+            })
+            ->with('deviceActions.action')
+            ->orderByDesc('created_at')
+            ->get();
 
         $deviceIds  = $devices->pluck('id');
         $allObjects = TrackedObject::whereIn('company_id', $companyIds)->get();

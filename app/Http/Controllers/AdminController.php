@@ -22,7 +22,6 @@ class AdminController extends Controller
     public function devices()
     {
         $devices = Device::with(['user', 'company', 'deviceActions.action'])
-            ->withTrashed()
             ->orderByDesc('created_at')
             ->get();
 
@@ -246,20 +245,14 @@ class AdminController extends Controller
     public function destroyCompany(Company $company)
     {
         // Soft-delete all devices of this company
-        Device::where('company_id', $company->id)->each(fn($d) => $d->delete());
+        Device::where('company_id', $company->id)->delete();
 
         // Delete tracked objects and offices
         \App\Models\TrackedObject::where('company_id', $company->id)->delete();
         \App\Models\Office::where('company_id', $company->id)->delete();
 
-        // Delete the company owner if they have no other companies
-        if ($company->user_id) {
-            $user = User::find($company->user_id);
-            if ($user && $user->companies()->where('id', '!=', $company->id)->doesntExist()) {
-                $user->devices()->update(['user_id' => null]);
-                $user->delete();
-            }
-        }
+        // Detach all users from this company
+        $company->users()->detach();
 
         $company->delete();
         return redirect()->route('admin.users')->with('success', 'Компанію видалено');
@@ -436,6 +429,7 @@ class AdminController extends Controller
             'password'         => 'required|string|min:6',
             'company_id'       => 'nullable|exists:companies,id',
             'new_company_name' => 'nullable|string|max:255',
+            'position'         => 'nullable|string|max:100',
         ]);
 
         $user = User::create([
@@ -446,10 +440,13 @@ class AdminController extends Controller
             'role'     => 'user',
         ]);
 
+        $position = $request->input('position', 'owner') ?: 'owner';
+
         if ($request->filled('company_id')) {
-            Company::where('id', $request->company_id)->update(['user_id' => $user->id]);
+            $user->companies()->attach($request->company_id, ['position' => $position]);
         } elseif ($request->filled('new_company_name')) {
-            Company::create(['name' => $request->new_company_name, 'user_id' => $user->id]);
+            $company = Company::create(['name' => $request->new_company_name, 'user_id' => $user->id]);
+            $user->companies()->attach($company->id, ['position' => $position]);
         }
 
         return redirect()->route('admin.users')->with('success', "Користувача {$user->name} створено.");
@@ -474,6 +471,7 @@ class AdminController extends Controller
             'phone'      => 'nullable|string|max:50',
             'password'   => 'nullable|string|min:6',
             'company_id' => 'nullable|exists:companies,id',
+            'position'   => 'nullable|string|max:100',
         ]);
 
         $user->update([
@@ -484,7 +482,8 @@ class AdminController extends Controller
         ]);
 
         if ($request->filled('company_id')) {
-            Company::where('id', $request->company_id)->update(['user_id' => $user->id]);
+            $position = $request->input('position', 'owner') ?: 'owner';
+            $user->companies()->syncWithoutDetaching([$request->company_id => ['position' => $position]]);
         }
 
         return redirect()->route('admin.users')->with('success', "Користувача {$user->name} оновлено.");
@@ -494,20 +493,33 @@ class AdminController extends Controller
     {
         abort_if($user->role === 'admin', 403);
 
-        $period     = $request->query('period', 'week');
-        $date       = $request->query('date');
-        $deviceView = $request->query('device_view', 'my');
-        $data       = app(UserController::class)->getDashboardData($user, $period, $date, $deviceView);
-        return view('user.index', array_merge($data, ['viewingAs' => $user, 'deviceView' => $deviceView]));
+        $period  = $request->query('period', 'week');
+        $date    = $request->query('date');
+        $section = $request->query('section', 'devices');
+        $uc      = app(UserController::class);
+
+        $extra = ['viewingAs' => $user, 'activeSection' => $section];
+
+        if ($section === 'companies') {
+            $data = $uc->getCompaniesPageData($user, $period, $date);
+            return view('user.companies', array_merge($data, $extra));
+        }
+
+        if ($section === 'events') {
+            $data = $uc->getEventsPageData($user, $period, $date);
+            return view('user.events', array_merge($data, $extra));
+        }
+
+        $data = $uc->getDashboardData($user, $period, $date, 'all');
+        return view('user.index', array_merge($data, $extra));
     }
 
     public function destroyUser(User $user)
     {
         abort_if($user->role === 'admin', 403);
 
-        // Detach devices from the owner (devices themselves are not deleted)
         $user->devices()->update(['user_id' => null]);
-        $user->companies()->update(['user_id' => null]);
+        $user->companies()->detach();
         $user->delete();
 
         return redirect()->route('admin.users')->with('success', "Користувача {$user->name} видалено.");

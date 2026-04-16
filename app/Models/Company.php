@@ -18,6 +18,11 @@ class Company extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function users()
+    {
+        return $this->belongsToMany(User::class)->withPivot('position')->withTimestamps();
+    }
+
     public function offices(): HasMany
     {
         return $this->hasMany(Office::class);

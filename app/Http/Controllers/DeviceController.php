@@ -89,6 +89,11 @@ class DeviceController extends Controller
         if (auth()->user()->role === 'admin') {
             return;
         }
-        abort_unless($device->user_id === auth()->id(), 403);
+        $user       = auth()->user();
+        $companyIds = $user->companies()->pluck('companies.id');
+        abort_unless(
+            $device->user_id === $user->id || $companyIds->contains($device->company_id),
+            403
+        );
     }
 }

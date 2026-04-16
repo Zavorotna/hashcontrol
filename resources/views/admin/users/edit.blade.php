@@ -39,8 +39,8 @@
 
         <hr>
 
-        <div class="mb-4">
-            <label class="form-label">Компанія</label>
+        <div class="mb-3">
+            <label class="form-label">Додати до компанії</label>
             <select name="company_id" class="form-select">
                 <option value="">— не змінювати —</option>
                 @foreach($companies as $company)
@@ -50,7 +50,22 @@
                     </option>
                 @endforeach
             </select>
-            <div class="form-text">Вибір компанії призначить цього користувача її власником.</div>
+        </div>
+
+        <div class="mb-4">
+            <label class="form-label">Посада</label>
+            <input type="text" name="position" class="form-control"
+                   list="position-list" autocomplete="off"
+                   value="{{ old('position', $user->companies->first()?->pivot?->position ?? 'owner') }}"
+                   placeholder="owner, guard, admin...">
+            <datalist id="position-list">
+                <option value="owner">
+                <option value="admin">
+                <option value="guard">
+                <option value="cashier">
+                <option value="manager">
+                <option value="operator">
+            </datalist>
         </div>
 
         <div class="d-flex gap-2">

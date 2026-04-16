@@ -13,10 +13,16 @@
     @endif
 
     {{-- ── Section navigation ────────────────────────────────────────────── --}}
+    @php
+        $devicesUrl  = isset($viewingAs) ? route('admin.users.dashboard', $viewingAs) : route('user.index');
+        $companiesUrl = isset($viewingAs) ? route('admin.users.dashboard', $viewingAs).'?section=companies' : route('user.companies');
+        $eventsUrl    = isset($viewingAs) ? route('admin.users.dashboard', $viewingAs).'?section=events' : route('user.events');
+        $activeSection = $activeSection ?? 'devices';
+    @endphp
     <div class="d-flex align-items-center gap-2 mb-4">
-        <a href="{{ route('user.index') }}" class="btn btn-sm btn-primary">Пристрої</a>
-        <a href="{{ route('user.companies') }}" class="btn btn-sm btn-outline-secondary">Компанії та об'єкти</a>
-        <a href="{{ route('user.events') }}" class="btn btn-sm btn-outline-secondary">Події</a>
+        <a href="{{ $devicesUrl }}" class="btn btn-sm {{ $activeSection === 'devices' ? 'btn-primary' : 'btn-outline-secondary' }}">Пристрої</a>
+        <a href="{{ $companiesUrl }}" class="btn btn-sm {{ $activeSection === 'companies' ? 'btn-primary' : 'btn-outline-secondary' }}">Компанії та об'єкти</a>
+        <a href="{{ $eventsUrl }}" class="btn btn-sm {{ $activeSection === 'events' ? 'btn-primary' : 'btn-outline-secondary' }}">Події</a>
     </div>
 
     {{-- ── Period selector ───────────────────────────────────────────────── --}}

@@ -17,7 +17,7 @@ class TrackedObjectController extends Controller
         $query = TrackedObject::with('company')->orderBy('type')->orderBy('name');
 
         if ($user->role !== 'admin') {
-            $companyIds = $user->companies()->pluck('id');
+            $companyIds = $user->companies()->modelKeys();
             $query->whereIn('company_id', $companyIds);
         }
 
@@ -44,7 +44,7 @@ class TrackedObjectController extends Controller
         if ($user->role === 'admin') {
             $companyRule = 'required|exists:companies,id';
         } else {
-            $companyIds  = $user->companies()->pluck('id')->toArray();
+            $companyIds  = $user->companies()->modelKeys()->toArray();
             $companyRule = 'required|in:' . implode(',', $companyIds ?: [0]);
         }
 
@@ -233,7 +233,7 @@ class TrackedObjectController extends Controller
         if ($user->role === 'admin') {
             $companyRule = 'required|exists:companies,id';
         } else {
-            $companyIds  = $user->companies()->pluck('id')->toArray();
+            $companyIds  = $user->companies()->modelKeys()->toArray();
             $companyRule = 'required|in:' . implode(',', $companyIds ?: [0]);
         }
 
@@ -274,7 +274,7 @@ class TrackedObjectController extends Controller
 
         // Ensure device belongs to user's company (admin bypasses)
         if (auth()->user()->role !== 'admin') {
-            $companyIds = auth()->user()->companies()->pluck('id');
+            $companyIds = auth()->user()->companies()->modelKeys();
             abort_unless($companyIds->contains($device->company_id), 403);
         }
 
@@ -310,7 +310,7 @@ class TrackedObjectController extends Controller
 
         // Verify that the device belongs to the user's company (admin bypasses)
         if (auth()->user()->role !== 'admin') {
-            $companyIds = auth()->user()->companies()->pluck('id');
+            $companyIds = auth()->user()->companies()->modelKeys();
             abort_unless($companyIds->contains($device->company_id), 403);
         }
 
@@ -336,7 +336,7 @@ class TrackedObjectController extends Controller
         if (auth()->user()->role === 'admin') {
             return;
         }
-        $companyIds = auth()->user()->companies()->pluck('id');
+        $companyIds = auth()->user()->companies()->modelKeys();
         abort_unless($companyIds->contains($obj->company_id), 403);
     }
 }

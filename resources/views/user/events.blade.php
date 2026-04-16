@@ -2,10 +2,21 @@
 <div class="container py-4">
 
     {{-- ── Section navigation ────────────────────────────────────────────── --}}
+    @php
+        $devUrl = isset($viewingAs) ? route('admin.users.dashboard', $viewingAs) : route('user.index');
+        $coUrl  = isset($viewingAs) ? route('admin.users.dashboard', $viewingAs).'?section=companies' : route('user.companies');
+        $evUrl  = isset($viewingAs) ? route('admin.users.dashboard', $viewingAs).'?section=events' : route('user.events');
+    @endphp
+    @if(isset($viewingAs))
+        <div class="alert alert-info d-flex justify-content-between align-items-center">
+            <span>Ви переглядаєте панель як <strong>{{ $viewingAs->name }}</strong> ({{ $viewingAs->email }})</span>
+            <a href="{{ route('admin.users') }}" class="btn btn-sm btn-outline-dark">← До списку</a>
+        </div>
+    @endif
     <div class="d-flex align-items-center gap-2 mb-4">
-        <a href="{{ route('user.index') }}" class="btn btn-sm btn-outline-secondary">Пристрої</a>
-        <a href="{{ route('user.companies') }}" class="btn btn-sm btn-outline-secondary">Компанії та об'єкти</a>
-        <a href="{{ route('user.events') }}" class="btn btn-sm btn-primary">Події</a>
+        <a href="{{ $devUrl }}" class="btn btn-sm btn-outline-secondary">Пристрої</a>
+        <a href="{{ $coUrl }}" class="btn btn-sm btn-outline-secondary">Компанії та об'єкти</a>
+        <a href="{{ $evUrl }}" class="btn btn-sm btn-primary">Події</a>
     </div>
 
     {{-- ── Period selector ───────────────────────────────────────────────── --}}

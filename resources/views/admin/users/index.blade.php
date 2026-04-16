@@ -36,7 +36,14 @@
                     @forelse($users as $user)
                     <tr>
                         <td class="small text-muted">
-                            {{ $user->companies->pluck('name')->join(', ') ?: '—' }}
+                            @foreach($user->companies as $c)
+                                {{ $c->name }}
+                                @if($c->pivot->position)
+                                    <span class="badge bg-light text-dark border">{{ $c->pivot->position }}</span>
+                                @endif
+                                @if(!$loop->last), @endif
+                            @endforeach
+                            @if($user->companies->isEmpty())—@endif
                         </td>
                         <td class="fw-semibold">{{ $user->name }}</td>
                         <td class="small">{{ $user->email }}</td>
@@ -139,12 +146,27 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="mb-4" id="newCompanyGroup">
+                        <div class="mb-3" id="newCompanyGroup">
                             <label class="form-label">або нова компанія</label>
                             <input type="text" name="new_company_name" class="form-control"
                                    value="{{ old('new_company_name') }}"
                                    placeholder="Назва нової компанії">
                             <div class="form-text">Якщо обрано існуючу — це поле ігнорується.</div>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label">Посада</label>
+                            <input type="text" name="position" class="form-control"
+                                   list="position-list" autocomplete="off"
+                                   value="{{ old('position', 'owner') }}"
+                                   placeholder="owner, guard, admin...">
+                            <datalist id="position-list">
+                                <option value="owner">
+                                <option value="admin">
+                                <option value="guard">
+                                <option value="cashier">
+                                <option value="manager">
+                                <option value="operator">
+                            </datalist>
                         </div>
                         <button type="submit" class="btn btn-primary w-100">Створити</button>
                     </form>
