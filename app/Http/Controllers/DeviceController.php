@@ -10,9 +10,12 @@ use PhpMqtt\Client\Facades\MQTT;
 
 class DeviceController extends Controller
 {
-    public function show(Device $device)
+    public function show(Device $device, \Illuminate\Http\Request $request)
     {
         $this->authorize($device);
+
+        $backPeriod     = $request->query('period', 'week');
+        $backDeviceView = $request->query('device_view', 'my');
 
         $device->load('deviceActions.action');
 
@@ -51,7 +54,7 @@ class DeviceController extends Controller
 
         return view('user.devices.show', compact(
             'device', 'currentState', 'lastStateLog', 'lastMeasurement',
-            'objectMap', 'recentLogs'
+            'objectMap', 'recentLogs', 'backPeriod', 'backDeviceView'
         ));
     }
 

@@ -16,7 +16,7 @@
                 <tr>
                     <td>{{ $company->id }}</td>
                     <td>{{ $company->name }}</td>
-                    <td>{{ $company->user->name }}</td>
+                    <td>{{ $company->user?->name ?? '—' }}</td>
                     <td>
                         <a href="{{ route('admin.companies.edit', $company) }}" class="btn btn-sm btn-warning">Редагувати</a>
                         <form method="POST" action="{{ route('admin.companies.destroy', $company) }}" class="d-inline">

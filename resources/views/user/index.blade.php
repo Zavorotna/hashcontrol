@@ -12,15 +12,19 @@
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif
 
+    {{-- ── Section navigation ────────────────────────────────────────────── --}}
+    <div class="d-flex align-items-center gap-2 mb-4">
+        <a href="{{ route('user.index') }}" class="btn btn-sm btn-primary">Пристрої</a>
+        <a href="{{ route('user.companies') }}" class="btn btn-sm btn-outline-secondary">Компанії та об'єкти</a>
+        <a href="{{ route('user.events') }}" class="btn btn-sm btn-outline-secondary">Події</a>
+    </div>
+
     {{-- ── Period selector ───────────────────────────────────────────────── --}}
-    @php
-        $baseUrl  = isset($viewingAs) ? route('admin.users.dashboard', $viewingAs) : route('user.index');
-        $dvParam  = '&device_view=' . ($deviceView ?? 'my');
-    @endphp
+    @php $baseUrl = isset($viewingAs) ? route('admin.users.dashboard', $viewingAs) : route('user.index'); @endphp
     <div class="d-flex align-items-center gap-2 mb-4 flex-wrap">
         <span class="text-muted small fw-semibold">Період:</span>
         @foreach($periodLabels as $key => $label)
-            <a href="{{ $baseUrl }}?period={{ $key }}{{ $key === 'day' && !empty($customDate) ? '&date='.$customDate : '' }}{{ $dvParam }}"
+            <a href="{{ $baseUrl }}?period={{ $key }}{{ $key === 'day' && !empty($customDate) ? '&date='.$customDate : '' }}"
                class="btn btn-sm {{ $period === $key ? 'btn-primary' : 'btn-outline-secondary' }}">
                 {{ $label }}
             </a>
@@ -32,33 +36,19 @@
                value="{{ $customDate ?? '' }}"
                max="{{ date('Y-m-d') }}"
                title="Обрати конкретний день"
-               data-base-url="{{ $baseUrl }}"
-               data-dv-param="{{ $dvParam }}">
+               data-base-url="{{ $baseUrl }}">
     </div>
     <script>
     document.getElementById('specificDayPicker').addEventListener('change', function () {
         if (this.value) {
-            window.location.href = this.dataset.baseUrl + '?period=day&date=' + this.value + (this.dataset.dvParam || '');
+            window.location.href = this.dataset.baseUrl + '?period=day&date=' + this.value;
         }
     });
     </script>
 
-    {{-- ── Device view toggle ─────────────────────────────────────────────── --}}
-    <div class="d-flex align-items-center gap-2 mb-4">
-        <span class="text-muted small fw-semibold">Пристрої:</span>
-        <a href="{{ $baseUrl }}?period={{ $period }}{{ !empty($customDate) ? '&date='.$customDate : '' }}&device_view=my"
-           class="btn btn-sm {{ ($deviceView ?? 'my') === 'my' ? 'btn-primary' : 'btn-outline-secondary' }}">
-            Мої пристрої
-        </a>
-        <a href="{{ $baseUrl }}?period={{ $period }}{{ !empty($customDate) ? '&date='.$customDate : '' }}&device_view=all"
-           class="btn btn-sm {{ ($deviceView ?? 'my') === 'all' ? 'btn-primary' : 'btn-outline-secondary' }}">
-            Усі пристрої компаній
-        </a>
-    </div>
-
     {{-- ── ON/OFF statistics ──────────────────────────────────────────────── --}}
     @if(!empty($onOffStats))
-    <h2 class="mb-3">Статистика ON/OFF пристроїв</h2>
+    <h2 class="mb-3">Статистика ON/OFF</h2>
     @foreach($onOffStats as $stat)
     @php
         $stateColor = $stat['current_state'] === 'on' ? 'success' : ($stat['current_state'] === 'off' ? 'danger' : 'secondary');
@@ -147,7 +137,6 @@
     @endif
 
     {{-- ── Devices table ───────────────────────────────────────────────────── --}}
-    <h2 class="mb-3 mt-2">Пристрої</h2>
     <div class="table-responsive mb-4">
         <table class="table table-sm table-bordered align-middle">
             <thead class="table-light">
@@ -164,7 +153,7 @@
                 @php $ds = $deviceStats[$device->id] ?? [] @endphp
                 <tr>
                     <td>
-                        <a href="{{ route('user.devices.show', $device) }}" class="fw-semibold text-decoration-none">
+                        <a href="{{ route('user.devices.show', $device) }}?period={{ $period }}&device_view={{ $deviceView ?? 'my' }}" class="fw-semibold text-decoration-none">
                             {{ $device->name }}
                         </a>
                     </td>
@@ -191,7 +180,7 @@
                         @endif
                     </td>
                     <td class="text-center">
-                        <a href="{{ route('user.devices.show', $device) }}"
+                        <a href="{{ route('user.devices.show', $device) }}?period={{ $period }}&device_view={{ $deviceView ?? 'my' }}"
                            class="btn btn-sm btn-outline-primary">→</a>
                     </td>
                 </tr>

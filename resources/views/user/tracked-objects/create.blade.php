@@ -15,22 +15,19 @@
         @if(isset($trackedObject)) @method('PUT') @endif
 
         {{-- MQTT ID --}}
+        @if(isset($trackedObject))
+            <input type="hidden" name="external_id" value="{{ $trackedObject->external_id }}">
+        @else
         <div class="mb-3">
             <label class="form-label fw-semibold">
                 ID об'єкта <small class="text-muted">(поле <code>data</code> з MQTT)</small>
             </label>
-            @if(isset($trackedObject))
-                <input type="text" class="form-control bg-light" readonly
-                    value="{{ $trackedObject->external_id }}">
-                <input type="hidden" name="external_id" value="{{ $trackedObject->external_id }}">
-                <div class="form-text">ID не можна змінювати після реєстрації об'єкта.</div>
-            @else
-                <input type="text" name="external_id" class="form-control" required
-                    placeholder="напр. 203, W001, GEN_MAIN"
-                    value="{{ old('external_id', request('external_id', '')) }}">
-                <div class="form-text">Знайдіть значення в колонці «ID (MQTT)» таблиці подій.</div>
-            @endif
+            <input type="text" name="external_id" class="form-control" required
+                placeholder="напр. 203, W001, GEN_MAIN"
+                value="{{ old('external_id', request('external_id', '')) }}">
+            <div class="form-text">Знайдіть значення в колонці «ID (MQTT)» таблиці подій.</div>
         </div>
+        @endif
 
         {{-- Тип --}}
         @php

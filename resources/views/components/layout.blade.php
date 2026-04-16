@@ -24,16 +24,12 @@
                                href="{{ route('admin.devices') }}">Пристрої</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link {{ request()->routeIs('admin.companies*') ? 'active' : '' }}"
-                               href="{{ route('admin.companies') }}">Компанії</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {{ request()->routeIs('admin.offices*') ? 'active' : '' }}"
-                               href="{{ route('admin.offices') }}">Об'єкти</a>
-                        </li>
-                        <li class="nav-item">
                             <a class="nav-link {{ request()->routeIs('admin.users*') ? 'active' : '' }}"
                                href="{{ route('admin.users') }}">Користувачі</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {{ request()->routeIs('user.tracked-objects*') ? 'active' : '' }}"
+                               href="{{ route('user.tracked-objects.index') }}">Об'єкти</a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link {{ request()->routeIs('admin.actions*') ? 'active' : '' }}"

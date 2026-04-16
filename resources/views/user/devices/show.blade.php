@@ -47,7 +47,7 @@
                 <span class="text-muted small ms-2">· {{ $device->company->name }}</span>
             @endif
         </div>
-        <a href="{{ route('user.index') }}" class="btn btn-outline-secondary btn-sm">← Назад</a>
+        <a href="{{ route('user.index') }}?period={{ $backPeriod }}&device_view={{ $backDeviceView }}" class="btn btn-outline-secondary btn-sm">← Назад</a>
     </div>
 
     <div class="row g-4">
@@ -138,8 +138,11 @@
                                 <option value="">— без дії —</option>
                                 @foreach($device->deviceActions as $da)
                                 <option value="{{ $da->action->name }}">
-                                    {{ $da->action->title ?? $da->action->name }}
-                                    ({{ $da->action->name }})
+                                    @if($da->action->title && $da->action->title !== $da->action->name)
+                                        {{ $da->action->title }} ({{ $da->action->name }})
+                                    @else
+                                        {{ $da->action->name }}
+                                    @endif
                                 </option>
                                 @endforeach
                             </select>

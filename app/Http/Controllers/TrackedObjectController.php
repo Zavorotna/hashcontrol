@@ -13,14 +13,15 @@ class TrackedObjectController extends Controller
 {
     public function index()
     {
-        $user       = auth()->user();
-        $companyIds = $user->companies()->pluck('id');
+        $user  = auth()->user();
+        $query = TrackedObject::with('company')->orderBy('type')->orderBy('name');
 
-        $objects = TrackedObject::whereIn('company_id', $companyIds)
-            ->with('company')
-            ->orderBy('type')
-            ->orderBy('name')
-            ->get();
+        if ($user->role !== 'admin') {
+            $companyIds = $user->companies()->pluck('id');
+            $query->whereIn('company_id', $companyIds);
+        }
+
+        $objects = $query->get();
 
         return view('user.tracked-objects.index', compact('objects'));
     }
@@ -38,12 +39,18 @@ class TrackedObjectController extends Controller
 
     public function store(Request $request)
     {
-        $user       = auth()->user();
-        $companyIds = $user->companies()->pluck('id')->toArray();
+        $user = auth()->user();
+
+        if ($user->role === 'admin') {
+            $companyRule = 'required|exists:companies,id';
+        } else {
+            $companyIds  = $user->companies()->pluck('id')->toArray();
+            $companyRule = 'required|in:' . implode(',', $companyIds ?: [0]);
+        }
 
         $request->validate([
             'external_id' => 'required|string|max:100',
-            'company_id'  => 'required|in:' . implode(',', $companyIds),
+            'company_id'  => $companyRule,
             'name'        => 'required|string|max:255',
             'type'        => 'required|string|max:50',
             'tenant_name' => 'nullable|string|max:255',
@@ -66,7 +73,11 @@ class TrackedObjectController extends Controller
             'tenant_name', 'email', 'phone', 'address', 'notes'
         ));
 
-        return redirect()->route('user.tracked-objects.index')->with('success', 'Об\'єкт зареєстровано.');
+        $redirect = auth()->user()->role === 'admin'
+            ? redirect()->route('user.tracked-objects.index')
+            : redirect()->route('user.companies');
+
+        return $redirect->with('success', 'Об\'єкт зареєстровано.');
     }
 
     public function show(TrackedObject $trackedObject, Request $request)
@@ -218,11 +229,17 @@ class TrackedObjectController extends Controller
     {
         $this->authorizeObject($trackedObject);
 
-        $companyIds = auth()->user()->companies()->pluck('id')->toArray();
+        $user = auth()->user();
+        if ($user->role === 'admin') {
+            $companyRule = 'required|exists:companies,id';
+        } else {
+            $companyIds  = $user->companies()->pluck('id')->toArray();
+            $companyRule = 'required|in:' . implode(',', $companyIds ?: [0]);
+        }
 
         $request->validate([
             'external_id' => 'required|string|max:100',
-            'company_id'  => 'required|in:' . implode(',', $companyIds),
+            'company_id'  => $companyRule,
             'name'        => 'required|string|max:255',
             'type'        => 'required|string|max:50',
             'tenant_name' => 'nullable|string|max:255',

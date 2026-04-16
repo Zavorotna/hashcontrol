@@ -17,11 +17,10 @@ class UserController extends Controller
 
     public function index(Request $request)
     {
-        $period     = $request->query('period', 'week');
-        $date       = $request->query('date');
-        $deviceView = $request->query('device_view', 'my');
-        $data       = $this->getDevicesPageData(auth()->user(), $period, $date, $deviceView);
-        return view('user.index', array_merge($data, ['deviceView' => $deviceView]));
+        $period = $request->query('period', 'week');
+        $date   = $request->query('date');
+        $data   = $this->getDevicesPageData($request->user(), $period, $date, 'all');
+        return view('user.index', $data);
     }
 
     public function companies(Request $request)
@@ -113,11 +112,7 @@ class UserController extends Controller
         $companyIds = $companies->pluck('id');
 
         $devices = $deviceView === 'all'
-            ? Device::whereIn('id',
-                TrackedObject::whereIn('company_id', $companyIds)
-                    ->with('devices')->get()
-                    ->flatMap(fn($o) => $o->devices->pluck('id'))->unique()
-                )->with('deviceActions.action')->orderByDesc('created_at')->get()
+            ? Device::whereIn('company_id', $companyIds)->with('deviceActions.action')->orderByDesc('created_at')->get()
             : $user->devices()->with('deviceActions.action')->orderByDesc('created_at')->get();
 
         $deviceIds = $devices->pluck('id');

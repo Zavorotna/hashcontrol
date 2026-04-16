@@ -26,17 +26,24 @@ class AdminController extends Controller
             ->orderByDesc('created_at')
             ->get();
 
-        $pendingRequests = MqttMessage::withTrashed()
+        // Preload all blacklisted device records keyed by device_id to avoid N+1 in the view
+        $blacklistedDevices = BlacklistedDevice::withTrashed()
+            ->get()
+            ->keyBy('device_id');
+
+        $pendingRequests = MqttMessage::query()
             ->whereRaw('NOT EXISTS (SELECT 1 FROM devices WHERE devices.device_id = mqtt_messages.device_id)')
+            ->whereRaw('NOT EXISTS (SELECT 1 FROM blacklisted_devices WHERE blacklisted_devices.device_id = mqtt_messages.device_id AND blacklisted_devices.deleted_at IS NULL)')
             ->whereIn('id', function ($q) {
                 $q->selectRaw('MAX(id)')
                   ->from('mqtt_messages')
+                  ->whereNull('deleted_at')
                   ->groupBy('device_id');
             })
             ->orderByDesc('created_at')
             ->get();
 
-        return view('admin.devices.index', compact('devices', 'pendingRequests'));
+        return view('admin.devices.index', compact('devices', 'pendingRequests', 'blacklistedDevices'));
     }
 
     public function createDevice()
@@ -85,13 +92,15 @@ class AdminController extends Controller
         $allDataValues = $logDataValues->merge($mqttDataValues)->unique()->sort()->values();
 
         // Already registered objects for this device's company
-        $registeredExternalIds = $device->company_id
-            ? TrackedObject::where('company_id', $device->company_id)->pluck('external_id')
+        $registeredObjects = $device->company_id
+            ? TrackedObject::where('company_id', $device->company_id)->get()
             : collect();
+
+        $registeredExternalIds = $registeredObjects->pluck('external_id');
 
         return view('admin.devices.edit', compact(
             'device', 'users', 'companies', 'deviceNames',
-            'allDataValues', 'registeredExternalIds'
+            'allDataValues', 'registeredExternalIds', 'registeredObjects'
         ));
     }
 
@@ -136,6 +145,15 @@ class AdminController extends Controller
             }
         }
 
+        // Rename existing objects
+        $renames = $request->input('rename', []);
+        foreach ($renames as $objId => $newName) {
+            $newName = trim($newName);
+            if ($newName !== '') {
+                TrackedObject::where('id', $objId)->update(['name' => $newName]);
+            }
+        }
+
         $count = 0;
         foreach ($objects as $externalId => $objData) {
             if (empty($objData['register'])) {
@@ -152,8 +170,12 @@ class AdminController extends Controller
             $count++;
         }
 
+        $msg = [];
+        if (!empty($renames)) $msg[] = 'Назви оновлено.';
+        if ($count > 0) $msg[] = "Зареєстровано об'єктів: {$count}.";
+
         return redirect()->route('admin.devices.edit', $device)
-            ->with('success', "Зареєстровано об'єктів: {$count}");
+            ->with('success', implode(' ', $msg) ?: 'Збережено.');
     }
 
     // Actions CRUD
@@ -203,30 +225,7 @@ class AdminController extends Controller
         return redirect()->route('admin.actions')->with('success', 'Action deleted');
     }
 
-    // Companies CRUD
-    public function companies()
-    {
-        $companies = Company::with('user')->get();
-        return view('admin.companies.index', compact('companies'));
-    }
-
-    public function createCompany()
-    {
-        $users = User::where('role', 'user')->get();
-        return view('admin.companies.create', compact('users'));
-    }
-
-    public function storeCompany(Request $request)
-    {
-        $request->validate([
-            'name' => 'required',
-            'user_id' => 'required|exists:users,id',
-        ]);
-
-        Company::create($request->all());
-        return redirect()->route('admin.companies')->with('success', 'Company created');
-    }
-
+    // Companies (edit/delete only — creation is through user creation)
     public function editCompany(Company $company)
     {
         $users = User::where('role', 'user')->get();
@@ -236,18 +235,34 @@ class AdminController extends Controller
     public function updateCompany(Request $request, Company $company)
     {
         $request->validate([
-            'name' => 'required',
-            'user_id' => 'required|exists:users,id',
+            'name'    => 'required',
+            'user_id' => 'nullable|exists:users,id',
         ]);
 
-        $company->update($request->all());
-        return redirect()->route('admin.companies')->with('success', 'Company updated');
+        $company->update($request->only('name', 'user_id'));
+        return redirect()->route('admin.users')->with('success', 'Компанію оновлено');
     }
 
     public function destroyCompany(Company $company)
     {
+        // Soft-delete all devices of this company
+        Device::where('company_id', $company->id)->each(fn($d) => $d->delete());
+
+        // Delete tracked objects and offices
+        \App\Models\TrackedObject::where('company_id', $company->id)->delete();
+        \App\Models\Office::where('company_id', $company->id)->delete();
+
+        // Delete the company owner if they have no other companies
+        if ($company->user_id) {
+            $user = User::find($company->user_id);
+            if ($user && $user->companies()->where('id', '!=', $company->id)->doesntExist()) {
+                $user->devices()->update(['user_id' => null]);
+                $user->delete();
+            }
+        }
+
         $company->delete();
-        return redirect()->route('admin.companies')->with('success', 'Company deleted');
+        return redirect()->route('admin.users')->with('success', 'Компанію видалено');
     }
 
     // Offices CRUD
@@ -407,7 +422,7 @@ class AdminController extends Controller
             ->sortBy(fn($u) => $u->companies->first()?->name ?? 'я')
             ->values();
 
-        $companies = Company::orderBy('name')->get();
+        $companies = Company::with('user')->withCount('devices')->orderBy('name')->get();
 
         return view('admin.users.index', compact('users', 'companies'));
     }
@@ -440,6 +455,41 @@ class AdminController extends Controller
         return redirect()->route('admin.users')->with('success', "Користувача {$user->name} створено.");
     }
 
+    public function editUser(User $user)
+    {
+        abort_if($user->role === 'admin', 403);
+
+        $companies = Company::orderBy('name')->get();
+
+        return view('admin.users.edit', compact('user', 'companies'));
+    }
+
+    public function updateUser(Request $request, User $user)
+    {
+        abort_if($user->role === 'admin', 403);
+
+        $request->validate([
+            'name'       => 'required|string|max:255',
+            'email'      => 'required|email|unique:users,email,' . $user->id,
+            'phone'      => 'nullable|string|max:50',
+            'password'   => 'nullable|string|min:6',
+            'company_id' => 'nullable|exists:companies,id',
+        ]);
+
+        $user->update([
+            'name'  => $request->name,
+            'email' => $request->email,
+            'phone' => $request->phone,
+            ...($request->filled('password') ? ['password' => Hash::make($request->password)] : []),
+        ]);
+
+        if ($request->filled('company_id')) {
+            Company::where('id', $request->company_id)->update(['user_id' => $user->id]);
+        }
+
+        return redirect()->route('admin.users')->with('success', "Користувача {$user->name} оновлено.");
+    }
+
     public function userDashboard(User $user, \Illuminate\Http\Request $request)
     {
         abort_if($user->role === 'admin', 403);
@@ -467,14 +517,15 @@ class AdminController extends Controller
     public function index()
     {
         // One row per device_id — latest record wins (active takes priority over soft-deleted)
-        $pendingRequests = MqttMessage::withTrashed()
+        $pendingRequests = MqttMessage::query()
             ->whereRaw('NOT EXISTS (SELECT 1 FROM devices WHERE devices.device_id = mqtt_messages.device_id)')
-            ->whereRaw('mqtt_messages.id = (
-                SELECT id FROM mqtt_messages m2
-                WHERE m2.device_id = mqtt_messages.device_id
-                ORDER BY m2.deleted_at IS NOT NULL, m2.updated_at DESC
-                LIMIT 1
-            )')
+            ->whereRaw('NOT EXISTS (SELECT 1 FROM blacklisted_devices WHERE blacklisted_devices.device_id = mqtt_messages.device_id AND blacklisted_devices.deleted_at IS NULL)')
+            ->whereIn('id', function ($q) {
+                $q->selectRaw('MAX(id)')
+                  ->from('mqtt_messages')
+                  ->whereNull('deleted_at')
+                  ->groupBy('device_id');
+            })
             ->orderByDesc('updated_at')
             ->get();
         $devices = Device::with('user', 'company')->get();

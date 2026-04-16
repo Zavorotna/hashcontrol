@@ -54,10 +54,7 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/actions/{action}', [AdminController::class, 'updateAction'])->name('admin.actions.update');
         Route::delete('/actions/{action}', [AdminController::class, 'destroyAction'])->name('admin.actions.destroy');
 
-        // Companies
-        Route::get('/companies', [AdminController::class, 'companies'])->name('admin.companies');
-        Route::get('/companies/create', [AdminController::class, 'createCompany'])->name('admin.companies.create');
-        Route::post('/companies', [AdminController::class, 'storeCompany'])->name('admin.companies.store');
+        // Companies (edit/delete only)
         Route::get('/companies/{company}/edit', [AdminController::class, 'editCompany'])->name('admin.companies.edit');
         Route::put('/companies/{company}', [AdminController::class, 'updateCompany'])->name('admin.companies.update');
         Route::delete('/companies/{company}', [AdminController::class, 'destroyCompany'])->name('admin.companies.destroy');
@@ -73,6 +70,8 @@ Route::middleware(['auth'])->group(function () {
         // Users
         Route::get('/users', [AdminController::class, 'users'])->name('admin.users');
         Route::post('/users', [AdminController::class, 'storeUser'])->name('admin.users.store');
+        Route::get('/users/{user}/edit', [AdminController::class, 'editUser'])->name('admin.users.edit');
+        Route::put('/users/{user}', [AdminController::class, 'updateUser'])->name('admin.users.update');
         Route::get('/users/{user}/dashboard', [AdminController::class, 'userDashboard'])->name('admin.users.dashboard');
         Route::delete('/users/{user}', [AdminController::class, 'destroyUser'])->name('admin.users.destroy');
 

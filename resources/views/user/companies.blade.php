@@ -5,6 +5,13 @@
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif
 
+    {{-- ── Section navigation ────────────────────────────────────────────── --}}
+    <div class="d-flex align-items-center gap-2 mb-4">
+        <a href="{{ route('user.index') }}" class="btn btn-sm btn-outline-secondary">Пристрої</a>
+        <a href="{{ route('user.companies') }}" class="btn btn-sm btn-primary">Компанії та об'єкти</a>
+        <a href="{{ route('user.events') }}" class="btn btn-sm btn-outline-secondary">Події</a>
+    </div>
+
     {{-- ── Period selector ───────────────────────────────────────────────── --}}
     @php $baseUrl = route('user.companies'); @endphp
     <div class="d-flex align-items-center gap-2 mb-4 flex-wrap">
@@ -35,7 +42,9 @@
     {{-- ── Companies and objects ──────────────────────────────────────────── --}}
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h2 class="mb-0">Ваші компанії та об'єкти</h2>
-        <a href="{{ route('user.tracked-objects.create') }}" class="btn btn-outline-primary btn-sm">+ Додати об'єкт</a>
+        @if(auth()->user()->role === 'admin')
+            <a href="{{ route('user.tracked-objects.create') }}" class="btn btn-outline-primary btn-sm">+ Додати об'єкт</a>
+        @endif
     </div>
 
     @forelse($companies as $company)
@@ -50,7 +59,9 @@
             @if($companyObjects->isEmpty())
                 <p class="text-muted mb-0">
                     Об'єктів не зареєстровано.
-                    <a href="{{ route('user.tracked-objects.create') }}">Додати</a>
+                    @if(auth()->user()->role === 'admin')
+                        <a href="{{ route('user.tracked-objects.create') }}">Додати</a>
+                    @endif
                 </p>
             @else
                 @foreach($companyObjects->groupBy('type') as $type => $group)

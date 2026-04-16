@@ -1,22 +1,36 @@
 <x-layout title="Редагувати компанію">
-    <div class="container">
-        <h1>Редагувати компанію</h1>
+    <div class="container py-4" style="max-width:480px">
+        <h1 class="mb-4">Редагувати компанію</h1>
+
+        @if($errors->any())
+            <div class="alert alert-danger">
+                @foreach($errors->all() as $e)<div>{{ $e }}</div>@endforeach
+            </div>
+        @endif
+
         <form method="POST" action="{{ route('admin.companies.update', $company) }}">
             @csrf
             @method('PUT')
             <div class="mb-3">
-                <label>Назва</label>
-                <input type="text" name="name" class="form-control" value="{{ $company->name }}" required>
+                <label class="form-label">Назва <span class="text-danger">*</span></label>
+                <input type="text" name="name" class="form-control"
+                       value="{{ old('name', $company->name) }}" required>
             </div>
-            <div class="mb-3">
-                <label>Користувач</label>
-                <select name="user_id" class="form-control" required>
+            <div class="mb-4">
+                <label class="form-label">Власник</label>
+                <select name="user_id" class="form-select">
+                    <option value="">— не призначено —</option>
                     @foreach($users as $user)
-                    <option value="{{ $user->id }}" {{ $company->user_id == $user->id ? 'selected' : '' }}>{{ $user->name }}</option>
+                        <option value="{{ $user->id }}" {{ $company->user_id == $user->id ? 'selected' : '' }}>
+                            {{ $user->name }} ({{ $user->email }})
+                        </option>
                     @endforeach
                 </select>
             </div>
-            <button type="submit" class="btn btn-primary">Оновити</button>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Зберегти</button>
+                <a href="{{ route('admin.users') }}" class="btn btn-outline-secondary">Скасувати</a>
+            </div>
         </form>
     </div>
 </x-layout>

@@ -22,4 +22,9 @@ class Company extends Model
     {
         return $this->hasMany(Office::class);
     }
+
+    public function devices(): HasMany
+    {
+        return $this->hasMany(Device::class);
+    }
 }

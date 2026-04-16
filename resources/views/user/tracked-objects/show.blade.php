@@ -42,7 +42,6 @@
         <div>
             <h2 class="mb-1">{{ $trackedObject->name }}</h2>
             <span class="badge bg-secondary">{{ $typeLabels[$trackedObject->type] ?? $trackedObject->type }}</span>
-            <code class="ms-2 text-muted">{{ $trackedObject->external_id }}</code>
         </div>
         <div class="d-flex gap-2">
             <a href="{{ route('user.tracked-objects.edit', $trackedObject) }}" class="btn btn-outline-secondary btn-sm">Редагувати</a>
@@ -84,10 +83,6 @@
                             <tr>
                                 <th class="text-muted fw-normal ps-3" style="width:40%">Компанія</th>
                                 <td class="pe-3">{{ $trackedObject->company->name }}</td>
-                            </tr>
-                            <tr>
-                                <th class="text-muted fw-normal ps-3">MQTT ID</th>
-                                <td class="pe-3"><code>{{ $trackedObject->external_id }}</code></td>
                             </tr>
                             @if($trackedObject->tenant_name)
                             <tr>

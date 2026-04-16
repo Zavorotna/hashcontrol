@@ -117,7 +117,10 @@
                         </thead>
                         <tbody>
                             @foreach($allDataValues as $dataVal)
-                            @php $alreadyRegistered = $registeredExternalIds->contains($dataVal); @endphp
+                            @php
+                                $registeredObj = $registeredObjects->firstWhere('external_id', $dataVal);
+                                $alreadyRegistered = $registeredObj !== null;
+                            @endphp
                             <tr class="{{ $alreadyRegistered ? 'table-success' : '' }}">
                                 <td>
                                     @if(!$alreadyRegistered)
@@ -139,13 +142,18 @@
                                     @endif
                                 </td>
                                 <td>
-                                    @if(!$alreadyRegistered)
-                                    <input type="text"
-                                           name="objects[{{ $dataVal }}][name]"
-                                           class="form-control form-control-sm obj-name-input"
-                                           placeholder="Введіть назву"
-                                           disabled
-                                           required>
+                                    @if($alreadyRegistered)
+                                        <input type="text"
+                                               name="rename[{{ $registeredObj->id }}]"
+                                               class="form-control form-control-sm"
+                                               value="{{ $registeredObj->name }}">
+                                    @else
+                                        <input type="text"
+                                               name="objects[{{ $dataVal }}][name]"
+                                               class="form-control form-control-sm obj-name-input"
+                                               placeholder="Введіть назву"
+                                               disabled
+                                               required>
                                     @endif
                                 </td>
                             </tr>
@@ -157,7 +165,7 @@
             @if(!$device->company_id)
                 <p class="text-warning small">Спочатку призначте пристрою компанію — об'єкти реєструються в межах компанії.</p>
             @else
-                <button type="submit" class="btn btn-outline-primary btn-sm">Зареєструвати вибрані</button>
+                <button type="submit" class="btn btn-outline-primary btn-sm">Зберегти</button>
             @endif
         </form>
         @endif

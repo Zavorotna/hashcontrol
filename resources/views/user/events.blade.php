@@ -1,6 +1,13 @@
 <x-layout title="Події">
 <div class="container py-4">
 
+    {{-- ── Section navigation ────────────────────────────────────────────── --}}
+    <div class="d-flex align-items-center gap-2 mb-4">
+        <a href="{{ route('user.index') }}" class="btn btn-sm btn-outline-secondary">Пристрої</a>
+        <a href="{{ route('user.companies') }}" class="btn btn-sm btn-outline-secondary">Компанії та об'єкти</a>
+        <a href="{{ route('user.events') }}" class="btn btn-sm btn-primary">Події</a>
+    </div>
+
     {{-- ── Period selector ───────────────────────────────────────────────── --}}
     @php $baseUrl = route('user.events'); @endphp
     <div class="d-flex align-items-center gap-2 mb-4 flex-wrap">
@@ -71,7 +78,7 @@
     {{-- Pagination --}}
     @if($logs->hasPages())
     <div class="d-flex justify-content-center mt-3">
-        {{ $logs->appends(['period' => $period, 'date' => $customDate])->links() }}
+        {{ $logs->appends(['period' => $period, 'date' => $customDate])->links('pagination::bootstrap-5') }}
     </div>
     @endif
 

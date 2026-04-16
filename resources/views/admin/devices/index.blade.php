@@ -109,8 +109,7 @@
                     <tbody>
                         @foreach($companyDevices as $device)
                         @php
-                            $isBlacklisted = \App\Models\BlacklistedDevice::withTrashed()
-                                ->where('device_id', $device->device_id)->first();
+                            $isBlacklisted = $blacklistedDevices->get($device->device_id);
                             $rangeRaw = $device->getRawOriginal('is_range_start');
                         @endphp
                         <tr>
