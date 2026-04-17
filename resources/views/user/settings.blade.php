@@ -1,7 +1,13 @@
 <x-layout title="Налаштування">
 <div class="container py-4" style="max-width: 480px">
 
-    <h2 class="mb-4">Налаштування</h2>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">{{ auth()->user()->name }}</h2>
+        <form method="POST" action="{{ route('logout') }}">
+            @csrf
+            <button type="submit" class="btn btn-outline-danger btn-sm">Вийти</button>
+        </form>
+    </div>
 
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>

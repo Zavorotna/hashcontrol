@@ -12,19 +12,6 @@
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif
 
-    {{-- ── Section navigation ────────────────────────────────────────────── --}}
-    @php
-        $devicesUrl  = isset($viewingAs) ? route('admin.users.dashboard', $viewingAs) : route('user.index');
-        $companiesUrl = isset($viewingAs) ? route('admin.users.dashboard', $viewingAs).'?section=companies' : route('user.companies');
-        $eventsUrl    = isset($viewingAs) ? route('admin.users.dashboard', $viewingAs).'?section=events' : route('user.events');
-        $activeSection = $activeSection ?? 'devices';
-    @endphp
-    <div class="d-flex align-items-center gap-2 mb-4">
-        <a href="{{ $devicesUrl }}" class="btn btn-sm {{ $activeSection === 'devices' ? 'btn-primary' : 'btn-outline-secondary' }}">Пристрої</a>
-        <a href="{{ $companiesUrl }}" class="btn btn-sm {{ $activeSection === 'companies' ? 'btn-primary' : 'btn-outline-secondary' }}">Компанії та об'єкти</a>
-        <a href="{{ $eventsUrl }}" class="btn btn-sm {{ $activeSection === 'events' ? 'btn-primary' : 'btn-outline-secondary' }}">Події</a>
-    </div>
-
     {{-- ── Period selector ───────────────────────────────────────────────── --}}
     @php $baseUrl = isset($viewingAs) ? route('admin.users.dashboard', $viewingAs) : route('user.index'); @endphp
     <div class="d-flex align-items-center gap-2 mb-4 flex-wrap">
@@ -159,7 +146,7 @@
                 @php $ds = $deviceStats[$device->id] ?? [] @endphp
                 <tr>
                     <td>
-                        <a href="{{ route('user.devices.show', $device) }}?period={{ $period }}&device_view={{ $deviceView ?? 'my' }}" class="fw-semibold text-decoration-none">
+                        <a href="{{ route('user.devices.show', $device) }}?period={{ $period }}{{ isset($viewingAs) ? '&viewing_as='.$viewingAs->id : '' }}" class="fw-semibold text-decoration-none">
                             {{ $device->name }}
                         </a>
                     </td>
@@ -186,7 +173,7 @@
                         @endif
                     </td>
                     <td class="text-center">
-                        <a href="{{ route('user.devices.show', $device) }}?period={{ $period }}&device_view={{ $deviceView ?? 'my' }}"
+                        <a href="{{ route('user.devices.show', $device) }}?period={{ $period }}{{ isset($viewingAs) ? '&viewing_as='.$viewingAs->id : '' }}"
                            class="btn btn-sm btn-outline-primary">→</a>
                     </td>
                 </tr>

@@ -21,14 +21,14 @@
                 <span class="text-muted small">{{ $users->count() }} зареєстровано</span>
             </div>
 
+            <div class="table-responsive">
             <table class="table table-bordered table-sm align-middle mb-5">
                 <thead class="table-light">
                     <tr>
                         <th>Компанія</th>
                         <th>Ім'я</th>
-                        <th>Email</th>
-                        <th>Телефон</th>
-                        <th class="text-center" style="width:70px">Пристрої</th>
+                        <th class="col-hide-mobile">Email</th>
+                        <th class="col-hide-mobile">Телефон</th>
                         <th style="width:150px"></th>
                     </tr>
                 </thead>
@@ -46,9 +46,8 @@
                             @if($user->companies->isEmpty())—@endif
                         </td>
                         <td class="fw-semibold">{{ $user->name }}</td>
-                        <td class="small">{{ $user->email }}</td>
-                        <td class="small">{{ $user->phone ?: '—' }}</td>
-                        <td class="text-center">{{ $user->devices_count }}</td>
+                        <td class="small col-hide-mobile">{{ $user->email }}</td>
+                        <td class="small col-hide-mobile">{{ $user->phone ?: '—' }}</td>
                         <td class="d-flex gap-1">
                             <a href="{{ route('admin.users.dashboard', $user) }}"
                                class="btn btn-sm btn-outline-primary">Дашборд</a>
@@ -66,6 +65,7 @@
                     @endforelse
                 </tbody>
             </table>
+            </div>
 
             {{-- Компанії --}}
             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -73,6 +73,7 @@
                 <span class="text-muted small">{{ $companies->count() }}</span>
             </div>
 
+            <div class="table-responsive">
             <table class="table table-bordered table-sm align-middle">
                 <thead class="table-light">
                     <tr>
@@ -103,6 +104,7 @@
                     @endforelse
                 </tbody>
             </table>
+            </div>
 
         </div>
 

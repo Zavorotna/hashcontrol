@@ -7,17 +7,25 @@ use App\Models\Device;
 use App\Models\DeviceLog;
 use App\Models\TrackedObject;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use PhpMqtt\Client\Facades\MQTT;
 
 class TrackedObjectController extends Controller
 {
+    private function getCompanyIds(int $userId): \Illuminate\Support\Collection
+    {
+        $pivotIds  = DB::table('company_user')->where('user_id', $userId)->pluck('company_id');
+        $legacyIds = DB::table('companies')->where('user_id', $userId)->pluck('id');
+        return $pivotIds->merge($legacyIds)->unique()->values();
+    }
+
     public function index()
     {
         $user  = auth()->user();
         $query = TrackedObject::with('company')->orderBy('type')->orderBy('name');
 
         if ($user->role !== 'admin') {
-            $companyIds = $user->companies()->modelKeys();
+            $companyIds = $this->getCompanyIds($user->id);
             $query->whereIn('company_id', $companyIds);
         }
 
@@ -31,7 +39,7 @@ class TrackedObjectController extends Controller
         $user      = auth()->user();
         $companies = $user->role === 'admin'
             ? Company::orderBy('name')->get()
-            : $user->companies;
+            : Company::whereIn('id', $this->getCompanyIds($user->id))->get();
         $existingTypes = TrackedObject::whereIn('company_id', $companies->pluck('id'))
             ->distinct()->orderBy('type')->pluck('type');
         return view('user.tracked-objects.create', compact('companies', 'existingTypes'));
@@ -44,7 +52,7 @@ class TrackedObjectController extends Controller
         if ($user->role === 'admin') {
             $companyRule = 'required|exists:companies,id';
         } else {
-            $companyIds  = $user->companies()->modelKeys()->toArray();
+            $companyIds  = $this->getCompanyIds($user->id)->toArray();
             $companyRule = 'required|in:' . implode(',', $companyIds ?: [0]);
         }
 
@@ -219,7 +227,7 @@ class TrackedObjectController extends Controller
         $user      = auth()->user();
         $companies = $user->role === 'admin'
             ? Company::orderBy('name')->get()
-            : $user->companies;
+            : Company::whereIn('id', $this->getCompanyIds($user->id))->get();
         $existingTypes = TrackedObject::whereIn('company_id', $companies->pluck('id'))
             ->distinct()->orderBy('type')->pluck('type');
         return view('user.tracked-objects.create', compact('trackedObject', 'companies', 'existingTypes'));
@@ -233,7 +241,7 @@ class TrackedObjectController extends Controller
         if ($user->role === 'admin') {
             $companyRule = 'required|exists:companies,id';
         } else {
-            $companyIds  = $user->companies()->modelKeys()->toArray();
+            $companyIds  = $this->getCompanyIds($user->id)->toArray();
             $companyRule = 'required|in:' . implode(',', $companyIds ?: [0]);
         }
 
@@ -274,7 +282,7 @@ class TrackedObjectController extends Controller
 
         // Ensure device belongs to user's company (admin bypasses)
         if (auth()->user()->role !== 'admin') {
-            $companyIds = auth()->user()->companies()->modelKeys();
+            $companyIds = $this->getCompanyIds(auth()->id());
             abort_unless($companyIds->contains($device->company_id), 403);
         }
 
@@ -310,7 +318,7 @@ class TrackedObjectController extends Controller
 
         // Verify that the device belongs to the user's company (admin bypasses)
         if (auth()->user()->role !== 'admin') {
-            $companyIds = auth()->user()->companies()->modelKeys();
+            $companyIds = $this->getCompanyIds(auth()->id());
             abort_unless($companyIds->contains($device->company_id), 403);
         }
 
@@ -336,7 +344,7 @@ class TrackedObjectController extends Controller
         if (auth()->user()->role === 'admin') {
             return;
         }
-        $companyIds = auth()->user()->companies()->modelKeys();
+        $companyIds = $this->getCompanyIds(auth()->id());
         abort_unless($companyIds->contains($obj->company_id), 403);
     }
 }

@@ -114,10 +114,21 @@ class AdminController extends Controller
         $rangeRaw     = $request->input('is_range_start');
         $isRangeStart = ($rangeRaw === '' || is_null($rangeRaw)) ? null : (bool)$rangeRaw;
 
+        $oldUserId    = $device->user_id;
+        $oldCompanyId = $device->company_id;
+        $newUserId    = $request->input('user_id');
+        $newCompanyId = $request->input('company_id');
+
         $device->update(array_merge(
             $request->only('name', 'user_id', 'company_id'),
             ['is_range_start' => $isRangeStart, 'is_on_off' => $request->boolean('is_on_off')]
         ));
+
+        // If owner changed — detach all tracked objects from this device
+        if ($oldUserId != $newUserId || $oldCompanyId != $newCompanyId) {
+            $device->trackedObjects()->detach();
+        }
+
         return redirect()->route('admin.devices')->with('success', 'Device updated');
     }
 
@@ -310,7 +321,7 @@ class AdminController extends Controller
     // Blacklist CRUD
     public function blacklistedDevices()
     {
-        $devices = BlacklistedDevice::withTrashed()->get();
+        $devices = BlacklistedDevice::all();
         return view('admin.blacklisted_devices.index', compact('devices'));
     }
 
@@ -326,9 +337,11 @@ class AdminController extends Controller
             'reason' => 'nullable|string',
         ]);
 
-        BlacklistedDevice::create($request->all());
+        // Remove any existing record (including soft-deleted) before creating new
+        BlacklistedDevice::withTrashed()->where('device_id', $request->device_id)->forceDelete();
+        BlacklistedDevice::create($request->only('device_id', 'reason'));
 
-        return redirect()->route('admin.blacklisted_devices')->with('success', 'Device added to blacklist');
+        return redirect()->back()->with('success', 'Пристрій додано до ігнору');
     }
 
     public function editBlacklistedDevice(BlacklistedDevice $blacklistedDevice)
@@ -350,8 +363,8 @@ class AdminController extends Controller
 
     public function destroyBlacklistedDevice(BlacklistedDevice $blacklistedDevice)
     {
-        $blacklistedDevice->delete();
-        return redirect()->route('admin.blacklisted_devices')->with('success', 'Blacklisted device removed');
+        $blacklistedDevice->forceDelete();
+        return redirect()->back()->with('success', 'Пристрій видалено з ігнору');
     }
 
     public function restoreBlacklistedDevice($id)
@@ -409,7 +422,6 @@ class AdminController extends Controller
     public function users()
     {
         $users = User::where('role', 'user')
-            ->withCount('devices')
             ->with('companies')
             ->get()
             ->sortBy(fn($u) => $u->companies->first()?->name ?? 'я')

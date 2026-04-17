@@ -5,23 +5,12 @@
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif
 
-    {{-- ── Section navigation ────────────────────────────────────────────── --}}
-    @php
-        $devUrl  = isset($viewingAs) ? route('admin.users.dashboard', $viewingAs) : route('user.index');
-        $coUrl   = isset($viewingAs) ? route('admin.users.dashboard', $viewingAs).'?section=companies' : route('user.companies');
-        $evUrl   = isset($viewingAs) ? route('admin.users.dashboard', $viewingAs).'?section=events' : route('user.events');
-    @endphp
     @if(isset($viewingAs))
         <div class="alert alert-info d-flex justify-content-between align-items-center">
             <span>Ви переглядаєте панель як <strong>{{ $viewingAs->name }}</strong> ({{ $viewingAs->email }})</span>
             <a href="{{ route('admin.users') }}" class="btn btn-sm btn-outline-dark">← До списку</a>
         </div>
     @endif
-    <div class="d-flex align-items-center gap-2 mb-4">
-        <a href="{{ $devUrl }}" class="btn btn-sm btn-outline-secondary">Пристрої</a>
-        <a href="{{ $coUrl }}" class="btn btn-sm btn-primary">Компанії та об'єкти</a>
-        <a href="{{ $evUrl }}" class="btn btn-sm btn-outline-secondary">Події</a>
-    </div>
 
     {{-- ── Period selector ───────────────────────────────────────────────── --}}
     @php $baseUrl = route('user.companies'); @endphp
@@ -139,12 +128,14 @@
         <p class="text-muted">Немає компаній.</p>
     @endforelse
 
-    {{-- ── Unregistered data IDs ──────────────────────────────────────────── --}}
-    @if($unregisteredDataIds->isNotEmpty())
+    {{-- ── Unregistered data IDs (admin only) ───────────────────────────────── --}}
+    @if((isset($viewingAs) || auth()->user()->role === 'admin') && $unregisteredDataIds->isNotEmpty())
     <div class="alert alert-warning mt-2">
         <strong>Незареєстровані ID:</strong>
         @foreach($unregisteredDataIds as $uid)
-            <code class="ms-1">{{ $uid }}</code>
+            <a href="{{ route('user.tracked-objects.create', ['external_id' => $uid]) }}" class="ms-1 text-decoration-none">
+                <code>{{ $uid }}</code>
+            </a>
         @endforeach
         <div class="small mt-1 text-muted">Ці значення надходять з пристроїв, але не пов'язані з жодним об'єктом.</div>
     </div>

@@ -19,7 +19,7 @@ class UserController extends Controller
     {
         $period = $request->query('period', 'week');
         $date   = $request->query('date');
-        $data   = $this->getDevicesPageData($request->user(), $period, $date, 'all');
+        $data   = $this->getDevicesPageData(auth()->user(), $period, $date, 'all');
         return view('user.index', $data);
     }
 
@@ -59,6 +59,15 @@ class UserController extends Controller
 
         $user->update(['password' => Hash::make($request->password)]);
         return back()->with('success', 'Пароль успішно змінено.');
+    }
+
+    // ── Get company IDs for a user (pivot + legacy user_id column) ───────────
+
+    private function getCompanyIds(User $user): \Illuminate\Support\Collection
+    {
+        $pivotIds  = DB::table('company_user')->where('user_id', $user->id)->pluck('company_id');
+        $legacyIds = DB::table('companies')->where('user_id', $user->id)->pluck('id');
+        return $pivotIds->merge($legacyIds)->unique()->values();
     }
 
     // ── Period helper ─────────────────────────────────────────────────────────
@@ -108,8 +117,8 @@ class UserController extends Controller
     {
         [$since, $until] = $this->parsePeriod($period, $customDate);
 
-        $companies  = $user->companies()->get();
-        $companyIds = $companies->modelKeys();
+        $companyIds = $this->getCompanyIds($user);
+        $companies  = \App\Models\Company::whereIn('id', $companyIds)->get();
 
         $devices = Device::where(function ($q) use ($user, $companyIds) {
                 $q->where('user_id', $user->id)
@@ -149,8 +158,8 @@ class UserController extends Controller
     {
         [$since, $until] = $this->parsePeriod($period, $customDate);
 
-        $companies  = $user->companies()->with('offices')->get();
-        $companyIds = $companies->modelKeys();
+        $companyIds = $this->getCompanyIds($user);
+        $companies  = \App\Models\Company::with('offices')->whereIn('id', $companyIds)->get();
         $allObjects = TrackedObject::whereIn('company_id', $companyIds)->get();
 
         // Unregistered data IDs (from reader devices)
@@ -188,7 +197,7 @@ class UserController extends Controller
     {
         [$since, $until] = $this->parsePeriod($period, $customDate);
 
-        $companyIds = $user->companies()->pluck('companies.id');
+        $companyIds = $this->getCompanyIds($user);
         $allObjects = TrackedObject::whereIn('company_id', $companyIds)->get();
         $deviceIds  = Device::where(function ($q) use ($user, $companyIds) {
             $q->where('user_id', $user->id)->orWhereIn('company_id', $companyIds);
@@ -379,8 +388,8 @@ class UserController extends Controller
     {
         [$since, $until] = $this->parsePeriod($period, $customDate);
 
-        $companies  = $user->companies()->with('offices')->get();
-        $companyIds = $companies->modelKeys();
+        $companyIds = $this->getCompanyIds($user);
+        $companies  = \App\Models\Company::with('offices')->whereIn('id', $companyIds)->get();
 
         $devices = Device::where(function ($q) use ($user, $companyIds) {
                 $q->where('user_id', $user->id)

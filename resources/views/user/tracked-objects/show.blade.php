@@ -45,8 +45,12 @@
         </div>
         <div class="d-flex gap-2">
             <a href="{{ route('user.tracked-objects.edit', $trackedObject) }}" class="btn btn-outline-secondary btn-sm">Редагувати</a>
-            <a href="{{ route('user.companies') }}?period={{ $period }}{{ !empty($customDate) ? '&date='.$customDate : '' }}"
-               class="btn btn-outline-secondary btn-sm">← Назад</a>
+            @if(auth()->user()->role === 'admin')
+                <a href="{{ route('user.tracked-objects.index') }}" class="btn btn-outline-secondary btn-sm">← Назад</a>
+            @else
+                <a href="{{ route('user.companies') }}?period={{ $period }}{{ !empty($customDate) ? '&date='.$customDate : '' }}"
+                   class="btn btn-outline-secondary btn-sm">← Назад</a>
+            @endif
         </div>
     </div>
 

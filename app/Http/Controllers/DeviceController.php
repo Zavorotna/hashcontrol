@@ -14,8 +14,12 @@ class DeviceController extends Controller
     {
         $this->authorize($device);
 
-        $backPeriod     = $request->query('period', 'week');
-        $backDeviceView = $request->query('device_view', 'my');
+        $backPeriod   = $request->query('period', 'week');
+        $viewingAsId  = $request->query('viewing_as');
+        $viewingAs    = $viewingAsId ? \App\Models\User::find($viewingAsId) : null;
+        $backUrl      = $viewingAs
+            ? route('admin.users.dashboard', $viewingAs) . '?period=' . $backPeriod
+            : route('user.index') . '?period=' . $backPeriod;
 
         $device->load('deviceActions.action');
 
@@ -54,7 +58,7 @@ class DeviceController extends Controller
 
         return view('user.devices.show', compact(
             'device', 'currentState', 'lastStateLog', 'lastMeasurement',
-            'objectMap', 'recentLogs', 'backPeriod', 'backDeviceView'
+            'objectMap', 'recentLogs', 'backUrl', 'viewingAs'
         ));
     }
 
