@@ -29,7 +29,7 @@
                         <th>Ім'я</th>
                         <th class="col-hide-mobile">Email</th>
                         <th class="col-hide-mobile">Телефон</th>
-                        <th style="width:150px"></th>
+                        <th style="width:1px"></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -48,20 +48,26 @@
                         <td class="fw-semibold">{{ $user->name }}</td>
                         <td class="small col-hide-mobile">{{ $user->email }}</td>
                         <td class="small col-hide-mobile">{{ $user->phone ?: '—' }}</td>
-                        <td class="d-flex gap-1">
-                            <a href="{{ route('admin.users.dashboard', $user) }}"
-                               class="btn btn-sm btn-outline-primary">Дашборд</a>
-                            <a href="{{ route('admin.users.edit', $user) }}"
-                               class="btn btn-sm btn-outline-secondary">Ред.</a>
-                            <form method="POST" action="{{ route('admin.users.destroy', $user) }}"
-                                  onsubmit="return confirm('Видалити {{ addslashes($user->name) }}?')">
-                                @csrf @method('DELETE')
-                                <button type="submit" class="btn btn-sm btn-outline-danger">✕</button>
-                            </form>
+                        <td class="text-nowrap">
+                            <div class="btn-actions">
+                                <a href="{{ route('admin.users.dashboard', $user) }}"
+                                   class="btn btn-sm btn-outline-primary">Дашборд</a>
+                                <a href="{{ route('admin.users.edit', $user) }}"
+                                   class="btn btn-sm btn-outline-secondary" title="Редагувати">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <form method="POST" action="{{ route('admin.users.destroy', $user) }}"
+                                      onsubmit="return confirm('Видалити {{ addslashes($user->name) }}?')">
+                                    @csrf @method('DELETE')
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Видалити">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="6" class="text-muted">Користувачів немає.</td></tr>
+                    <tr><td colspan="5" class="text-muted">Користувачів немає.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -80,7 +86,7 @@
                         <th>Назва</th>
                         <th>Власник</th>
                         <th class="text-center" style="width:80px">Пристрої</th>
-                        <th style="width:120px"></th>
+                        <th style="width:1px"></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -89,14 +95,20 @@
                         <td class="fw-semibold">{{ $company->name }}</td>
                         <td class="small text-muted">{{ $company->user?->name ?? '—' }}</td>
                         <td class="text-center">{{ $company->devices_count }}</td>
-                        <td class="d-flex gap-1">
-                            <a href="{{ route('admin.companies.edit', $company) }}"
-                               class="btn btn-sm btn-outline-secondary">Ред.</a>
-                            <form method="POST" action="{{ route('admin.companies.destroy', $company) }}"
-                                  onsubmit="return confirm('Видалити компанію «{{ addslashes($company->name) }}» та всі її дані?')">
-                                @csrf @method('DELETE')
-                                <button type="submit" class="btn btn-sm btn-outline-danger">✕</button>
-                            </form>
+                        <td class="text-nowrap">
+                            <div class="btn-actions">
+                                <a href="{{ route('admin.companies.edit', $company) }}"
+                                   class="btn btn-sm btn-outline-secondary" title="Редагувати">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <form method="POST" action="{{ route('admin.companies.destroy', $company) }}"
+                                      onsubmit="return confirm('Видалити компанію «{{ addslashes($company->name) }}» та всі її дані?')">
+                                    @csrf @method('DELETE')
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Видалити">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                     @empty

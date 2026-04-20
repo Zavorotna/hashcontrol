@@ -8,6 +8,7 @@ use App\Models\Company;
 use App\Models\Device;
 use App\Models\DeviceAction;
 use App\Models\BlacklistedDevice;
+use App\Models\DeviceLog;
 use App\Models\MqttMessage;
 use App\Models\Office;
 use App\Models\TrackedObject;
@@ -124,9 +125,10 @@ class AdminController extends Controller
             ['is_range_start' => $isRangeStart, 'is_on_off' => $request->boolean('is_on_off')]
         ));
 
-        // If owner changed — detach all tracked objects from this device
+        // If owner changed — detach tracked objects and clear event history
         if ($oldUserId != $newUserId || $oldCompanyId != $newCompanyId) {
             $device->trackedObjects()->detach();
+            DeviceLog::where('device_id', $device->id)->delete();
         }
 
         return redirect()->route('admin.devices')->with('success', 'Device updated');
@@ -321,7 +323,7 @@ class AdminController extends Controller
     // Blacklist CRUD
     public function blacklistedDevices()
     {
-        $devices = BlacklistedDevice::all();
+        $devices = BlacklistedDevice::orderBy('id')->get();
         return view('admin.blacklisted_devices.index', compact('devices'));
     }
 
@@ -333,7 +335,7 @@ class AdminController extends Controller
     public function storeBlacklistedDevice(Request $request)
     {
         $request->validate([
-            'device_id' => 'required|string|unique:blacklisted_devices,device_id',
+            'device_id' => 'required|string',
             'reason' => 'nullable|string',
         ]);
 
@@ -363,8 +365,14 @@ class AdminController extends Controller
 
     public function destroyBlacklistedDevice(BlacklistedDevice $blacklistedDevice)
     {
-        $blacklistedDevice->forceDelete();
-        return redirect()->back()->with('success', 'Пристрій видалено з ігнору');
+        $blacklistedDevice->delete();
+        return redirect()->back()->with('success', 'Пристрій знятий з ігнору');
+    }
+
+    public function forceDeleteBlacklistedDevice($id)
+    {
+        BlacklistedDevice::withTrashed()->findOrFail($id)->forceDelete();
+        return redirect()->back()->with('success', 'Пристрій назавжди видалено з ЧС і БД');
     }
 
     public function restoreBlacklistedDevice($id)
@@ -397,7 +405,7 @@ class AdminController extends Controller
         return redirect()->route('admin.devices')->with('success', 'Action assigned to device');
     }
 
-    public function removeActionFromDevice(Device $device, DeviceAction $deviceAction)
+    public function removeActionFromDevice(DeviceAction $deviceAction)
     {
         $deviceAction->delete();
         return redirect()->route('admin.devices')->with('success', 'Device action removed');

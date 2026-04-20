@@ -82,6 +82,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/blacklist/{blacklistedDevice}/edit', [AdminController::class, 'editBlacklistedDevice'])->name('admin.blacklisted_devices.edit');
         Route::put('/blacklist/{blacklistedDevice}', [AdminController::class, 'updateBlacklistedDevice'])->name('admin.blacklisted_devices.update');
         Route::delete('/blacklist/{blacklistedDevice}', [AdminController::class, 'destroyBlacklistedDevice'])->name('admin.blacklisted_devices.destroy');
+        Route::delete('/blacklist/{id}/force', [AdminController::class, 'forceDeleteBlacklistedDevice'])->name('admin.blacklisted_devices.force-delete');
         Route::post('/blacklist/{id}/restore', [AdminController::class, 'restoreBlacklistedDevice'])->name('admin.blacklisted_devices.restore');
     });
 

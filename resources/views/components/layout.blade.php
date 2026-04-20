@@ -5,7 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $title ?? 'hashcontrol' }}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <style>
+        /* Vertical alignment for all table cells */
+        td, th { vertical-align: middle; }
+
+        /* Action buttons in tables — no wrap, forms invisible to flex */
+        .btn-actions { display: flex; gap: 4px; align-items: center; flex-wrap: nowrap; }
+        .btn-actions form { display: contents; }
+
+        /* ON/OFF buttons — desktop: auto-width aligned right */
+        .on-off-buttons { margin-left: auto; }
+
         /* ── Mobile tweaks ── */
         @media (max-width: 767px) {
             .container { padding-left: 12px; padding-right: 12px; }
@@ -29,6 +40,10 @@
 
             /* Forms full-width buttons on mobile */
             .form-actions-mobile .btn { width: 100%; margin-bottom: .5rem; }
+
+            /* ON/OFF control buttons — full width on mobile */
+            .on-off-buttons { width: 100%; margin-top: .5rem; }
+            .on-off-buttons .btn { font-size: 1rem; padding: .5rem 1rem; }
 
             /* Hide less important table columns on mobile */
             .col-hide-mobile { display: none; }

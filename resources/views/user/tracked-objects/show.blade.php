@@ -223,7 +223,9 @@
                         <form method="POST" action="{{ route('user.tracked-objects.devices.detach', [$trackedObject, $device]) }}">
                             @csrf @method('DELETE')
                             <button type="submit" class="btn btn-sm btn-outline-danger"
-                                    onclick="return confirm('Відв\'язати пристрій?')">✕</button>
+                                    onclick="return confirm('Відв\'язати пристрій?')" title="Відв'язати">
+                                <i class="bi bi-trash"></i>
+                            </button>
                         </form>
                     </li>
                     @endforeach

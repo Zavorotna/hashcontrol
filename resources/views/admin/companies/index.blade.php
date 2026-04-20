@@ -1,33 +1,45 @@
 <x-layout title="Компанії">
-    <div class="container">
-        <h1>Компанії</h1>
-        <a href="{{ route('admin.companies.create') }}" class="btn btn-primary mb-3">Створити компанію</a>
-        <table class="table">
-            <thead>
+    <div class="container py-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h1 class="mb-0">Компанії</h1>
+            <a href="{{ route('admin.companies.create') }}" class="btn btn-primary btn-sm">+ Створити</a>
+        </div>
+        <div class="table-responsive">
+        <table class="table table-bordered table-sm">
+            <thead class="table-light">
                 <tr>
-                    <th>ID</th>
-                    <th>Name</th>
-                    <th>User</th>
-                    <th>Actions</th>
+                    <th style="width:50px">ID</th>
+                    <th>Назва</th>
+                    <th>Власник</th>
+                    <th style="width:1px"></th>
                 </tr>
             </thead>
             <tbody>
                 @foreach($companies as $company)
                 <tr>
-                    <td>{{ $company->id }}</td>
+                    <td class="text-muted small">{{ $company->id }}</td>
                     <td>{{ $company->name }}</td>
-                    <td>{{ $company->user?->name ?? '—' }}</td>
-                    <td>
-                        <a href="{{ route('admin.companies.edit', $company) }}" class="btn btn-sm btn-warning">Редагувати</a>
-                        <form method="POST" action="{{ route('admin.companies.destroy', $company) }}" class="d-inline">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Ви впевнені?')">Видалити</button>
-                        </form>
+                    <td class="text-muted small">{{ $company->user?->name ?? '—' }}</td>
+                    <td class="text-nowrap">
+                        <div class="btn-actions">
+                            <a href="{{ route('admin.companies.edit', $company) }}"
+                               class="btn btn-sm btn-outline-secondary" title="Редагувати">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <form method="POST" action="{{ route('admin.companies.destroy', $company) }}">
+                                @csrf @method('DELETE')
+                                <button type="submit" class="btn btn-sm btn-outline-danger"
+                                        onclick="return confirm('Видалити компанію «{{ addslashes($company->name) }}»?')"
+                                        title="Видалити">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </div>
                     </td>
                 </tr>
                 @endforeach
             </tbody>
         </table>
+        </div>
     </div>
 </x-layout>

@@ -82,7 +82,7 @@ class DeviceController extends Controller
             $mqtt->publish(config('mqtt.publish_topic', 'hashcontrol'), $payload, 0);
             $mqtt->disconnect();
 
-            return back()->with('command_sent', $payload);
+            return back()->with('command_sent', true);
         } catch (\Exception $e) {
             return back()->with('command_error', $e->getMessage());
         }

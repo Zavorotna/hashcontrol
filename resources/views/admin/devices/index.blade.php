@@ -34,27 +34,36 @@
                         <td class="small">{{ $req->action ?? '—' }}</td>
                         <td><code class="small">{{ $req->data }}</code></td>
                         <td class="small text-muted text-nowrap">{{ $req->updated_at->format('d.m H:i') }}</td>
-                        <td>
+                        <td class="text-nowrap">
                             @if($req->trashed())
-                                <form method="POST" action="{{ route('admin.requests.restore', $req->id) }}" class="d-inline">
-                                    @csrf
-                                    <button class="btn btn-sm btn-info">Відновити</button>
-                                </form>
+                                <div class="btn-actions">
+                                    <form method="POST" action="{{ route('admin.requests.restore', $req->id) }}">
+                                        @csrf
+                                        <button class="btn btn-sm btn-outline-info" title="Відновити">
+                                            <i class="bi bi-arrow-counterclockwise"></i>
+                                        </button>
+                                    </form>
+                                </div>
                             @else
-                                <div class="d-flex gap-1">
+                                <div class="btn-actions">
                                     <a href="{{ route('admin.registerDevice.form', $req->id) }}"
                                        class="btn btn-sm btn-primary">Реєстрація</a>
-                                    <form method="POST" action="{{ route('admin.blacklisted_devices.store') }}" class="d-inline">
+                                    <form method="POST" action="{{ route('admin.blacklisted_devices.store') }}">
                                         @csrf
                                         <input type="hidden" name="device_id" value="{{ $req->device_id }}">
                                         <input type="hidden" name="reason" value="Додано з панелі запитів">
                                         <button class="btn btn-sm btn-dark"
-                                            onclick="return confirm('Додати {{ $req->device_id }} до ігнор-списку?')">Ігнор</button>
+                                            onclick="return confirm('Додати {{ $req->device_id }} до ігнор-списку?')"
+                                            title="В ігнор">
+                                            <i class="bi bi-slash-circle"></i>
+                                        </button>
                                     </form>
-                                    <form method="POST" action="{{ route('admin.requests.destroy', $req->id) }}" class="d-inline">
+                                    <form method="POST" action="{{ route('admin.requests.destroy', $req->id) }}">
                                         @csrf @method('DELETE')
                                         <button class="btn btn-sm btn-outline-danger"
-                                            onclick="return confirm('Видалити запит?')">✕</button>
+                                            onclick="return confirm('Видалити запит?')" title="Видалити">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
                                     </form>
                                 </div>
                             @endif
@@ -160,29 +169,37 @@
                             <td class="small text-muted text-nowrap">
                                 {{ \Carbon\Carbon::parse($device->created_at)->format('d.m.Y') }}
                             </td>
-                            <td class="text-end">
-                                <div class="d-flex justify-content-end gap-1">
+                            <td class="text-nowrap">
+                                <div class="btn-actions justify-content-end">
                                     <a href="{{ route('admin.devices.edit', $device) }}"
-                                       class="btn btn-sm btn-outline-secondary">Редагувати</a>
+                                       class="btn btn-sm btn-outline-secondary" title="Редагувати">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
 
                                     @if($isBlacklisted && !$isBlacklisted->trashed())
-                                        <form method="POST" action="{{ route('admin.blacklisted_devices.destroy', $isBlacklisted) }}" class="d-inline">
+                                        <form method="POST" action="{{ route('admin.blacklisted_devices.destroy', $isBlacklisted) }}">
                                             @csrf @method('DELETE')
-                                            <button class="btn btn-sm btn-outline-danger" title="Вилучити з чорного списку">Зняти ЧС</button>
+                                            <button class="btn btn-sm btn-outline-success" title="Зняти з ігнору">
+                                                <i class="bi bi-arrow-up-circle"></i>
+                                            </button>
                                         </form>
                                     @else
-                                        <form method="POST" action="{{ route('admin.blacklisted_devices.store') }}" class="d-inline">
+                                        <form method="POST" action="{{ route('admin.blacklisted_devices.store') }}">
                                             @csrf
                                             <input type="hidden" name="device_id" value="{{ $device->device_id }}">
-                                            <input type="hidden" name="reason"    value="Manually blacklisted">
-                                            <button class="btn btn-sm btn-outline-dark" title="Додати в чорний список">ЧС</button>
+                                            <input type="hidden" name="reason" value="Manually blacklisted">
+                                            <button class="btn btn-sm btn-outline-dark" title="Додати в ігнор">
+                                                <i class="bi bi-slash-circle"></i>
+                                            </button>
                                         </form>
                                     @endif
 
-                                    <form method="POST" action="{{ route('admin.devices.destroy', $device) }}" class="d-inline">
+                                    <form method="POST" action="{{ route('admin.devices.destroy', $device) }}">
                                         @csrf @method('DELETE')
                                         <button class="btn btn-sm btn-outline-danger"
-                                                onclick="return confirm('Видалити пристрій?')">✕</button>
+                                                onclick="return confirm('Видалити пристрій?')" title="Видалити">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
                                     </form>
                                 </div>
                             </td>

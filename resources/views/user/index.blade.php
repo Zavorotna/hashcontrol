@@ -135,9 +135,9 @@
             <thead class="table-light">
                 <tr>
                     <th>Пристрій</th>
-                    <th>Тип</th>
+                    <th class="col-hide-mobile">Тип</th>
                     <th class="text-center">Подій за {{ $periodLabels[$period] ?? $period }}</th>
-                    <th>Остання активність</th>
+                    <th class="col-hide-mobile">Остання активність</th>
                     <th style="width:40px"></th>
                 </tr>
             </thead>
@@ -150,7 +150,7 @@
                             {{ $device->name }}
                         </a>
                     </td>
-                    <td class="small">
+                    <td class="small col-hide-mobile">
                         @if($device->is_on_off)
                             <span class="badge bg-warning text-dark">ON/OFF</span>
                         @elseif(!is_null($device->is_range_start))
@@ -162,7 +162,7 @@
                         @endif
                     </td>
                     <td class="text-center fw-semibold">{{ $ds['period_count'] ?? 0 }}</td>
-                    <td class="small text-muted">
+                    <td class="small text-muted col-hide-mobile">
                         @if(!empty($ds['last_at']))
                             {{ \Carbon\Carbon::parse($ds['last_at'])->format('d.m H:i') }}
                             @if(!empty($ds['last_data']))

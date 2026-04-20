@@ -333,7 +333,7 @@ class TrackedObjectController extends Controller
             $mqtt->publish(config('mqtt.publish_topic', 'hashcontrol'), $payload, 0);
             $mqtt->disconnect();
 
-            return back()->with('command_sent', "Команду відправлено: {$payload}");
+            return back()->with('command_sent', true);
         } catch (\Exception $e) {
             return back()->with('command_error', 'Помилка відправки MQTT: ' . $e->getMessage());
         }

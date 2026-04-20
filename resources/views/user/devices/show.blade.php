@@ -13,7 +13,6 @@
     <div class="alert alert-success d-flex justify-content-between align-items-start">
         <div>
             <strong>Команду надіслано.</strong>
-            <div class="mt-1 font-monospace small text-muted">{{ session('command_sent') }}</div>
         </div>
         <button type="button" class="btn-close ms-3" data-bs-dismiss="alert"></button>
     </div>
@@ -80,23 +79,23 @@
             ({{ \Carbon\Carbon::parse($lastStateLog->logged_at)->diffForHumans() }})
         </span>
         @endif
-        <div class="d-flex gap-2 ms-auto">
-            <form method="POST" action="{{ route('user.devices.send-command', $device) }}">
+        <div class="d-flex gap-2 on-off-buttons">
+            <form method="POST" action="{{ route('user.devices.send-command', $device) }}" class="flex-fill">
                 @csrf
                 <input type="hidden" name="action_name" value="{{ $defaultAction }}">
                 <input type="hidden" name="data" value="on">
                 <button type="submit"
-                        class="btn btn-success btn-lg px-4 {{ $currentState === 'on' ? 'opacity-50' : '' }}"
+                        class="btn btn-success btn-lg w-100 {{ $currentState === 'on' ? 'opacity-50' : '' }}"
                         {{ $currentState === 'on' ? 'disabled' : '' }}>
                     Ввімкнути
                 </button>
             </form>
-            <form method="POST" action="{{ route('user.devices.send-command', $device) }}">
+            <form method="POST" action="{{ route('user.devices.send-command', $device) }}" class="flex-fill">
                 @csrf
                 <input type="hidden" name="action_name" value="{{ $defaultAction }}">
                 <input type="hidden" name="data" value="off">
                 <button type="submit"
-                        class="btn btn-danger btn-lg px-4 {{ $currentState === 'off' ? 'opacity-50' : '' }}"
+                        class="btn btn-danger btn-lg w-100 {{ $currentState === 'off' ? 'opacity-50' : '' }}"
                         {{ $currentState === 'off' ? 'disabled' : '' }}>
                     Вимкнути
                 </button>
