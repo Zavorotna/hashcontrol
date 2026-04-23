@@ -186,8 +186,8 @@ class TrackedObjectController extends Controller
         $openEntry = null;
 
         foreach ($logs as $log) {
-            if ($entryDeviceIds->contains($log->device_id)) {
-                // New entry — if a previous session was left open without exit, close it implicitly
+            if ($entryDeviceIds->contains($log->device_id) && $openEntry === null) {
+                // Entry only if not already inside (no duplicate entries without exit)
                 $openEntry = $log;
             } elseif ($exitDeviceIds->contains($log->device_id) && $openEntry !== null) {
                 $entryTime = \Carbon\Carbon::parse($openEntry->logged_at);

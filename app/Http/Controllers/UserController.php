@@ -338,7 +338,7 @@ class UserController extends Controller
         $openEntry = null;
 
         foreach ($logs as $log) {
-            if ($entryIds->contains($log->device_id)) {
+            if ($entryIds->contains($log->device_id) && $openEntry === null) {
                 $openEntry = Carbon::parse($log->logged_at);
             } elseif ($exitIds->contains($log->device_id) && $openEntry !== null) {
                 $sessions[] = [$openEntry, Carbon::parse($log->logged_at)];
