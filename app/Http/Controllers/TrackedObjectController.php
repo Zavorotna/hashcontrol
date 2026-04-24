@@ -93,7 +93,7 @@ class TrackedObjectController extends Controller
         $this->authorizeObject($trackedObject);
 
         // ── Period / date ─────────────────────────────────────────────────────
-        $period     = $request->query('period', 'month');
+        $period     = $request->query('period', 'today');
         $customDate = $request->query('date');
 
         if ($period === 'day' && $customDate) {

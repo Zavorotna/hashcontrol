@@ -23,5 +23,8 @@ class AppServiceProvider extends ServiceProvider
         \Gate::define('admin', function ($user) {
             return $user->role === 'admin';
         });
+
+        // Sync MySQL session timezone with app timezone (Europe/Kyiv → +03:00 auto-computed)
+        \DB::statement("SET time_zone = '" . now()->format('P') . "'");
     }
 }

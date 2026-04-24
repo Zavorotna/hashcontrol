@@ -52,9 +52,131 @@
             @if($device->company)
                 <span class="text-muted small ms-2">· {{ $device->company->name }}</span>
             @endif
+            {{-- Range pair info --}}
+            @if($rangePairPartner)
+                <div class="mt-2 d-flex gap-2 flex-wrap">
+                    <span class="badge bg-success">▶ Вхід: {{ $device->is_range_start ? $device->name : $rangePairPartner->name }}</span>
+                    <span class="badge bg-secondary">■ Вихід: {{ $device->is_range_start ? $rangePairPartner->name : $device->name }}</span>
+                    <a href="{{ route('user.devices.show', $rangePairPartner) }}" class="btn btn-outline-secondary btn-sm py-0">
+                        → {{ $device->is_range_start ? 'Пристрій виходу' : 'Пристрій входу' }}
+                    </a>
+                </div>
+            @endif
         </div>
         <a href="{{ $backUrl }}" class="btn btn-outline-secondary btn-sm">← Назад</a>
     </div>
+
+    {{-- ── Period selector ───────────────────────────────────────────────────── --}}
+    @php $baseUrl = route('user.devices.show', $device) . (isset($viewingAs) ? '?viewing_as='.$viewingAs->id : ''); @endphp
+    <div class="d-flex align-items-center gap-2 mb-4 flex-wrap">
+        <span class="text-muted small fw-semibold">Період:</span>
+        @foreach($periodLabels as $key => $label)
+            <a href="{{ $baseUrl }}{{ str_contains($baseUrl, '?') ? '&' : '?' }}period={{ $key }}{{ $key === 'day' && !empty($customDate) ? '&date='.$customDate : '' }}"
+               class="btn btn-sm {{ $period === $key ? 'btn-primary' : 'btn-outline-secondary' }}">
+                {{ $label }}
+            </a>
+        @endforeach
+        <input type="date"
+               id="specificDayPicker"
+               class="form-control form-control-sm {{ $period === 'day' ? 'border-primary' : '' }}"
+               style="max-width:155px"
+               value="{{ $customDate ?? '' }}"
+               max="{{ date('Y-m-d') }}"
+               data-base-url="{{ $baseUrl }}{{ str_contains($baseUrl, '?') ? '&' : '?' }}">
+    </div>
+    <script>
+    document.getElementById('specificDayPicker').addEventListener('change', function () {
+        if (this.value) window.location.href = this.dataset.baseUrl + 'period=day&date=' + this.value;
+    });
+    </script>
+
+    {{-- ── Range pair stats ────────────────────────────────────────────────────── --}}
+    @if($pairStats !== null)
+    <div class="card mb-4">
+        <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+            <span>Статистика за {{ $periodLabels[$period] ?? $period }}</span>
+            <span class="text-muted small">
+                {{ $pairStats['total_sessions'] }} {{ $pairStats['total_sessions'] === 1 ? 'сеанс' : ($pairStats['total_sessions'] < 5 ? 'сеанси' : 'сеансів') }}
+                &nbsp;·&nbsp;
+                {{ $pairStats['total_h'] }}г {{ $pairStats['total_m'] }}хв загалом
+            </span>
+        </div>
+        @if(empty($pairStats['per_object']))
+            <div class="card-body text-muted small">Подій за вибраний період не знайдено.</div>
+        @else
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Об'єкт</th>
+                        <th class="text-center" style="width:90px">Сеансів</th>
+                        <th style="width:130px">Загальний час</th>
+                        <th style="width:40px"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($pairStats['per_object'] as $row)
+                    <tr>
+                        <td class="fw-semibold">
+                            {{ $row['name'] }}
+                            @if($row['open'])
+                                <span class="badge bg-warning text-dark ms-1">всередині</span>
+                            @endif
+                        </td>
+                        <td class="text-center">{{ $row['sessions'] }}</td>
+                        <td>
+                            @if($row['total_h'] > 0)
+                                <span class="fw-semibold">{{ $row['total_h'] }}г</span>
+                            @endif
+                            {{ $row['total_m'] }}хв
+                        </td>
+                        <td>
+                            @if($row['object'])
+                                <a href="{{ route('user.tracked-objects.show', $row['object']) }}?period={{ $period }}{{ !empty($customDate) ? '&date='.$customDate : '' }}"
+                                   class="btn btn-sm btn-outline-primary">→</a>
+                            @endif
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+                @if(count($pairStats['per_object']) > 1)
+                <tfoot class="table-light">
+                    <tr>
+                        <td class="text-end text-muted small">Разом:</td>
+                        <td class="text-center fw-bold">{{ $pairStats['total_sessions'] }}</td>
+                        <td class="fw-bold">
+                            @if($pairStats['total_h'] > 0){{ $pairStats['total_h'] }}г @endif
+                            {{ $pairStats['total_m'] }}хв
+                        </td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+                @endif
+            </table>
+        </div>
+        @endif
+    </div>
+    @endif
+
+    {{-- ── Linked tracked objects ──────────────────────────────────────────── --}}
+    @if($linkedObjects->isNotEmpty())
+    <div class="card mb-4">
+        <div class="card-header fw-semibold">Прив'язані об'єкти</div>
+        <ul class="list-group list-group-flush">
+            @foreach($linkedObjects as $obj)
+            <li class="list-group-item py-2 d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="fw-semibold small">{{ $obj->name }}</span>
+                    @if($obj->company)
+                        <span class="text-muted small ms-2">· {{ $obj->company->name }}</span>
+                    @endif
+                </div>
+                <a href="{{ route('user.tracked-objects.show', $obj) }}" class="btn btn-sm btn-outline-primary">→</a>
+            </li>
+            @endforeach
+        </ul>
+    </div>
+    @endif
 
     {{-- ── ON/OFF state + buttons ──────────────────────────────────────────── --}}
     @if($device->is_on_off)

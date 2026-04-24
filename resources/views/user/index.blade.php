@@ -142,20 +142,57 @@
                 </tr>
             </thead>
             <tbody>
-                @forelse($devices as $device)
-                @php $ds = $deviceStats[$device->id] ?? [] @endphp
+                {{-- ── Range pairs (entry+exit з однаковою назвою → один рядок) ── --}}
+                @foreach($rangePairs as $pair)
+                @php
+                    $lastData = $pair['last_data'] ?? null;
+                    $objName  = $lastData ? ($objectMap[$lastData] ?? null) : null;
+                @endphp
                 <tr>
                     <td>
-                        <a href="{{ route('user.devices.show', $device) }}?period={{ $period }}{{ isset($viewingAs) ? '&viewing_as='.$viewingAs->id : '' }}" class="fw-semibold text-decoration-none">
-                            {{ $device->name }}
-                        </a>
+                        <a href="{{ route('user.devices.show', $pair['entry_device']) }}?period={{ $period }}{{ isset($viewingAs) ? '&viewing_as='.$viewingAs->id : '' }}"
+                           class="fw-semibold text-decoration-none">{{ $pair['name'] }}</a>
+                    </td>
+                    <td class="small col-hide-mobile">
+                        <span class="badge bg-info text-dark">▶■ Пара</span>
+                    </td>
+                    <td class="text-center fw-semibold">{{ $pair['period_count'] }}</td>
+                    <td class="small text-muted col-hide-mobile">
+                        @if(!empty($pair['last_at']))
+                            {{ \Carbon\Carbon::parse($pair['last_at'])->format('d.m H:i') }}
+                            @if($objName)
+                                <span class="ms-1 text-dark">{{ $objName }}</span>
+                            @elseif($lastData)
+                                <code class="ms-1">{{ $lastData }}</code>
+                            @endif
+                        @else —
+                        @endif
+                    </td>
+                    <td class="text-center">
+                        <a href="{{ route('user.devices.show', $pair['entry_device']) }}?period={{ $period }}{{ isset($viewingAs) ? '&viewing_as='.$viewingAs->id : '' }}"
+                           class="btn btn-sm btn-outline-primary">→</a>
+                    </td>
+                </tr>
+                @endforeach
+
+                {{-- ── Окремі пристрої (не в парі) ── --}}
+                @forelse($devices->whereNotIn('id', $pairedIds) as $device)
+                @php
+                    $ds       = $deviceStats[$device->id] ?? [];
+                    $lastData = $ds['last_data'] ?? null;
+                    $objName  = $lastData ? ($objectMap[$lastData] ?? null) : null;
+                @endphp
+                <tr>
+                    <td>
+                        <a href="{{ route('user.devices.show', $device) }}?period={{ $period }}{{ isset($viewingAs) ? '&viewing_as='.$viewingAs->id : '' }}"
+                           class="fw-semibold text-decoration-none">{{ $device->name }}</a>
                     </td>
                     <td class="small col-hide-mobile">
                         @if($device->is_on_off)
                             <span class="badge bg-warning text-dark">ON/OFF</span>
-                        @elseif(!is_null($device->is_range_start))
+                        @elseif(!is_null($device->getRawOriginal('is_range_start')))
                             <span class="badge bg-light text-dark border">
-                                {{ $device->is_range_start ? '▶ Початок' : '■ Кінець' }}
+                                {{ $device->is_range_start ? '▶ Вхід' : '■ Вихід' }}
                             </span>
                         @else
                             <span class="text-muted">—</span>
@@ -165,11 +202,14 @@
                     <td class="small text-muted col-hide-mobile">
                         @if(!empty($ds['last_at']))
                             {{ \Carbon\Carbon::parse($ds['last_at'])->format('d.m H:i') }}
-                            @if(!empty($ds['last_data']))
-                                <code class="ms-1">{{ $ds['last_data'] }}</code>
+                            @if(in_array($lastData, ['on', 'off']))
+                                <span class="badge bg-{{ $lastData === 'on' ? 'success' : 'danger' }} ms-1">{{ strtoupper($lastData) }}</span>
+                            @elseif($objName)
+                                <span class="ms-1 text-dark">{{ $objName }}</span>
+                            @elseif($lastData)
+                                <code class="ms-1">{{ $lastData }}</code>
                             @endif
-                        @else
-                            —
+                        @else —
                         @endif
                     </td>
                     <td class="text-center">
@@ -178,7 +218,9 @@
                     </td>
                 </tr>
                 @empty
+                @if(empty($rangePairs))
                 <tr><td colspan="5" class="text-muted">Немає призначених пристроїв.</td></tr>
+                @endif
                 @endforelse
             </tbody>
         </table>

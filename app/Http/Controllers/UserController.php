@@ -17,7 +17,7 @@ class UserController extends Controller
 
     public function index(Request $request)
     {
-        $period = $request->query('period', 'week');
+        $period = $request->query('period', 'today');
         $date   = $request->query('date');
         $data   = $this->getDevicesPageData(auth()->user(), $period, $date, 'all');
         return view('user.index', $data);
@@ -25,7 +25,7 @@ class UserController extends Controller
 
     public function companies(Request $request)
     {
-        $period = $request->query('period', 'week');
+        $period = $request->query('period', 'today');
         $date   = $request->query('date');
         $data   = $this->getCompaniesPageData(auth()->user(), $period, $date);
         return view('user.companies', $data);
@@ -33,7 +33,7 @@ class UserController extends Controller
 
     public function events(Request $request)
     {
-        $period = $request->query('period', 'week');
+        $period = $request->query('period', 'today');
         $date   = $request->query('date');
         $data   = $this->getEventsPageData(auth()->user(), $period, $date);
         return view('user.events', $data);
@@ -113,12 +113,11 @@ class UserController extends Controller
 
     // ── Devices page data ─────────────────────────────────────────────────────
 
-    public function getDevicesPageData(User $user, string $period = 'week', ?string $customDate = null, string $deviceView = 'my'): array
+    public function getDevicesPageData(User $user, string $period = 'today', ?string $customDate = null, string $deviceView = 'my'): array
     {
         [$since, $until] = $this->parsePeriod($period, $customDate);
 
         $companyIds = $this->getCompanyIds($user);
-        $companies  = \App\Models\Company::whereIn('id', $companyIds)->get();
 
         $devices = Device::where(function ($q) use ($user, $companyIds) {
                 $q->where('user_id', $user->id)
@@ -128,7 +127,8 @@ class UserController extends Controller
             ->orderByDesc('created_at')
             ->get();
 
-        $deviceIds = $devices->pluck('id');
+        // Map external_id → object name for resolving card/tag data in logs
+        $objectMap = TrackedObject::whereIn('company_id', $companyIds)->pluck('name', 'external_id');
 
         // Per-device stats
         $deviceStats = [];
@@ -144,17 +144,40 @@ class UserController extends Controller
             ];
         }
 
+        // Group range devices (is_range_start not null) by name into pairs
+        $rangeDevices = $devices->filter(fn($d) => !$d->is_on_off && !is_null($d->getRawOriginal('is_range_start')));
+        $rangePairs   = [];
+        $pairedIds    = [];
+        foreach ($rangeDevices->groupBy('name') as $name => $group) {
+            $entries = $group->where('is_range_start', true);
+            $exits   = $group->where('is_range_start', false);
+            if ($entries->isNotEmpty() && $exits->isNotEmpty()) {
+                $pairIds = $group->pluck('id');
+                $lastLog = DeviceLog::whereIn('device_id', $pairIds)->latest('logged_at')->first();
+                $rangePairs[] = [
+                    'name'          => $name,
+                    'entry_device'  => $entries->first(),
+                    'exit_device'   => $exits->first(),
+                    'period_count'  => $this->logQuery($since)->whereIn('device_id', $pairIds)->whereBetween('logged_at', [$since, $until])->count(),
+                    'last_at'       => $lastLog?->logged_at,
+                    'last_data'     => $lastLog?->data,
+                ];
+                $pairedIds = array_merge($pairedIds, $pairIds->toArray());
+            }
+        }
+
         // ON/OFF stats
         $onOffStats   = $this->buildOnOffStats($devices, $since, $until, $companyIds);
 
         $periodLabels = $this->periodLabels($period, $customDate);
 
-        return compact('devices', 'deviceStats', 'onOffStats', 'period', 'customDate', 'since', 'until', 'periodLabels');
+        return compact('devices', 'deviceStats', 'onOffStats', 'rangePairs', 'pairedIds',
+                       'objectMap', 'period', 'customDate', 'since', 'until', 'periodLabels');
     }
 
     // ── Companies page data ───────────────────────────────────────────────────
 
-    public function getCompaniesPageData(User $user, string $period = 'week', ?string $customDate = null): array
+    public function getCompaniesPageData(User $user, string $period = 'today', ?string $customDate = null): array
     {
         [$since, $until] = $this->parsePeriod($period, $customDate);
 
@@ -172,15 +195,40 @@ class UserController extends Controller
 
         $unregisteredDataIds = $allDataIds->diff($allObjects->pluck('external_id'))->values();
 
-        // Object stats
+        // Pre-load entry/exit device IDs per company
+        $entryByCompany = Device::whereIn('company_id', $companyIds->toArray())
+            ->where('is_range_start', true)->get()->groupBy('company_id');
+        $exitByCompany  = Device::whereIn('company_id', $companyIds->toArray())
+            ->where('is_range_start', false)->get()->groupBy('company_id');
+
+        // Object stats + current status
         $objectStats = [];
         foreach ($allObjects as $obj) {
-            $lastLog = DeviceLog::where('data', $obj->external_id)->latest('logged_at')->first();
+            $lastLog  = DeviceLog::where('data', $obj->external_id)->latest('logged_at')->first();
+            $entryIds = $entryByCompany->get($obj->company_id, collect())->pluck('id');
+            $exitIds  = $exitByCompany->get($obj->company_id, collect())->pluck('id');
+
+            $currentStatus = null; // null = no range pair
+            if ($entryIds->isNotEmpty() && $exitIds->isNotEmpty()) {
+                $lastEntry = DeviceLog::where('data', $obj->external_id)->whereIn('device_id', $entryIds)->latest('logged_at')->first();
+                $lastExit  = DeviceLog::where('data', $obj->external_id)->whereIn('device_id', $exitIds)->latest('logged_at')->first();
+
+                if ($lastEntry) {
+                    $isInside  = !$lastExit || $lastEntry->logged_at > $lastExit->logged_at;
+                    $sinceTime = $isInside ? $lastEntry->logged_at : $lastExit->logged_at;
+                    $diffMin   = (int) now()->diffInMinutes(Carbon::parse($sinceTime));
+                    $currentStatus = [
+                        'inside'    => $isInside,
+                        'since'     => $sinceTime,
+                        'diff_min'  => $diffMin,
+                    ];
+                }
+            }
+
             $objectStats[$obj->id] = [
-                'period'      => $this->logQuery($since)->where('data', $obj->external_id)->whereBetween('logged_at', [$since, $until])->count(),
-                'last_data'   => $lastLog?->data,
-                'last_action' => null, // loaded separately if needed
-                'last_at'     => $lastLog?->logged_at,
+                'period'         => $this->logQuery($since)->where('data', $obj->external_id)->whereBetween('logged_at', [$since, $until])->count(),
+                'last_at'        => $lastLog?->logged_at,
+                'current_status' => $currentStatus,
             ];
         }
 

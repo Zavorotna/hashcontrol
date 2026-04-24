@@ -82,14 +82,19 @@
                         <thead class="table-light">
                             <tr>
                                 <th>Назва</th>
-                                <th class="text-center" style="width:100px">За {{ $periodLabels[$period] ?? $period }}</th>
-                                <th>Остання подія</th>
+                                <th class="text-center col-hide-mobile" style="width:80px">За {{ $periodLabels[$period] ?? $period }}</th>
+                                <th>Статус</th>
                                 <th style="width:40px"></th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach($group as $obj)
-                            @php $st = $objectStats[$obj->id] ?? [] @endphp
+                            @php
+                                $st  = $objectStats[$obj->id] ?? [];
+                                $cs  = $st['current_status'] ?? null;
+                                $h   = $cs ? floor($cs['diff_min'] / 60) : 0;
+                                $m   = $cs ? ($cs['diff_min'] % 60) : 0;
+                            @endphp
                             <tr>
                                 <td>
                                     <a href="{{ route('user.tracked-objects.show', $obj) }}?period={{ $period }}{{ !empty($customDate) ? '&date='.$customDate : '' }}"
@@ -102,9 +107,17 @@
                                         <br><small class="text-muted">{{ $obj->tenant_name }}</small>
                                     @endif
                                 </td>
-                                <td class="text-center fw-semibold">{{ $st['period'] ?? 0 }}</td>
+                                <td class="text-center fw-semibold col-hide-mobile">{{ $st['period'] ?? 0 }}</td>
                                 <td class="small">
-                                    @if(!empty($st['last_at']))
+                                    @if($cs !== null)
+                                        @if($cs['inside'])
+                                            <span class="badge bg-success">всередині</span>
+                                            <span class="text-muted ms-1">{{ $h > 0 ? $h.'г ' : '' }}{{ $m }}хв</span>
+                                        @else
+                                            <span class="badge bg-secondary">вийшов</span>
+                                            <span class="text-muted ms-1">{{ \Carbon\Carbon::parse($cs['since'])->format('d.m H:i') }}</span>
+                                        @endif
+                                    @elseif(!empty($st['last_at']))
                                         <span class="text-muted">{{ \Carbon\Carbon::parse($st['last_at'])->format('d.m H:i') }}</span>
                                     @else
                                         <span class="text-muted">—</span>

@@ -513,7 +513,7 @@ class AdminController extends Controller
     {
         abort_if($user->role === 'admin', 403);
 
-        $period  = $request->query('period', 'week');
+        $period  = $request->query('period', 'today');
         $date    = $request->query('date');
         $section = $request->query('section', 'devices');
         $uc      = app(UserController::class);
@@ -530,7 +530,7 @@ class AdminController extends Controller
             return view('user.events', array_merge($data, $extra));
         }
 
-        $data = $uc->getDashboardData($user, $period, $date, 'all');
+        $data = $uc->getDevicesPageData($user, $period, $date, 'all');
         return view('user.index', array_merge($data, $extra));
     }
 
