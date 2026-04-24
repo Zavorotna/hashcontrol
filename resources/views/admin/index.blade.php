@@ -48,20 +48,19 @@
                         @else
                             <a href="{{ route('admin.registerDevice.form', $request->id) }}"
                                class="btn btn-sm btn-primary btn-sm">Реєстрація</a>
-                            <form method="POST" action="{{ route('admin.blacklisted_devices.store') }}">
+                            <form method="POST" action="{{ route('admin.blacklisted_devices.store') }}"
+                                  onsubmit="return confirm('Додати {{ $request->device_id }} до ЧС?')">
                                 @csrf
                                 <input type="hidden" name="device_id" value="{{ $request->device_id }}">
                                 <input type="hidden" name="reason" value="Додано з панелі запитів">
-                                <button type="submit" class="btn btn-sm btn-dark"
-                                    onclick="return confirm('Додати {{ $request->device_id }} до ЧС?')"
-                                    title="В ігнор-список">
+                                <button type="submit" class="btn btn-sm btn-dark" title="В ігнор-список">
                                     <i class="bi bi-slash-circle"></i>
                                 </button>
                             </form>
-                            <form method="POST" action="{{ route('admin.requests.destroy', $request->id) }}">
+                            <form method="POST" action="{{ route('admin.requests.destroy', $request->id) }}"
+                                  onsubmit="return confirm('Видалити запит?')">
                                 @csrf @method('DELETE')
-                                <button type="submit" class="btn btn-sm btn-outline-danger"
-                                    onclick="return confirm('Видалити запит?')" title="Видалити">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Видалити">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </form>

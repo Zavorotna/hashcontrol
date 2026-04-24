@@ -26,11 +26,10 @@
                                class="btn btn-sm btn-outline-secondary" title="Редагувати">
                                 <i class="bi bi-pencil"></i>
                             </a>
-                            <form method="POST" action="{{ route('admin.companies.destroy', $company) }}">
+                            <form method="POST" action="{{ route('admin.companies.destroy', $company) }}"
+                                  onsubmit="return confirm('Видалити компанію «{{ addslashes($company->name) }}»?')">
                                 @csrf @method('DELETE')
-                                <button type="submit" class="btn btn-sm btn-outline-danger"
-                                        onclick="return confirm('Видалити компанію «{{ addslashes($company->name) }}»?')"
-                                        title="Видалити">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Видалити">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </form>

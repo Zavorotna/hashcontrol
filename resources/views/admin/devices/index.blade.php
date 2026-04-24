@@ -48,20 +48,19 @@
                                 <div class="btn-actions">
                                     <a href="{{ route('admin.registerDevice.form', $req->id) }}"
                                        class="btn btn-sm btn-primary">Реєстрація</a>
-                                    <form method="POST" action="{{ route('admin.blacklisted_devices.store') }}">
+                                    <form method="POST" action="{{ route('admin.blacklisted_devices.store') }}"
+                                          onsubmit="return confirm('Додати {{ $req->device_id }} до ігнор-списку?')">
                                         @csrf
                                         <input type="hidden" name="device_id" value="{{ $req->device_id }}">
                                         <input type="hidden" name="reason" value="Додано з панелі запитів">
-                                        <button class="btn btn-sm btn-dark"
-                                            onclick="return confirm('Додати {{ $req->device_id }} до ігнор-списку?')"
-                                            title="В ігнор">
+                                        <button type="submit" class="btn btn-sm btn-dark" title="В ігнор">
                                             <i class="bi bi-slash-circle"></i>
                                         </button>
                                     </form>
-                                    <form method="POST" action="{{ route('admin.requests.destroy', $req->id) }}">
+                                    <form method="POST" action="{{ route('admin.requests.destroy', $req->id) }}"
+                                          onsubmit="return confirm('Видалити запит?')">
                                         @csrf @method('DELETE')
-                                        <button class="btn btn-sm btn-outline-danger"
-                                            onclick="return confirm('Видалити запит?')" title="Видалити">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Видалити">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </form>
@@ -151,13 +150,13 @@
                                             @endif
                                             <form method="POST"
                                                   action="{{ route('admin.devices.actions.destroy', ['device' => $device->id, 'deviceAction' => $da->id]) }}"
-                                                  class="d-inline m-0 p-0">
+                                                  class="d-inline m-0 p-0"
+                                                  onsubmit="return confirm('Видалити дію?')">
                                                 @csrf @method('DELETE')
                                                 <button type="submit"
                                                         class="btn-close btn-close p-0 ms-1"
                                                         style="font-size:.55rem"
-                                                        title="Видалити дію"
-                                                        onclick="return confirm('Видалити дію?')"></button>
+                                                        title="Видалити дію"></button>
                                             </form>
                                         </span>
                                         @endforeach
@@ -194,10 +193,10 @@
                                         </form>
                                     @endif
 
-                                    <form method="POST" action="{{ route('admin.devices.destroy', $device) }}">
+                                    <form method="POST" action="{{ route('admin.devices.destroy', $device) }}"
+                                          onsubmit="return confirm('Видалити пристрій?')">
                                         @csrf @method('DELETE')
-                                        <button class="btn btn-sm btn-outline-danger"
-                                                onclick="return confirm('Видалити пристрій?')" title="Видалити">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Видалити">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </form>

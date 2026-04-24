@@ -29,10 +29,10 @@
                                class="btn btn-sm btn-outline-secondary" title="Редагувати">
                                 <i class="bi bi-pencil"></i>
                             </a>
-                            <form method="POST" action="{{ route('admin.actions.destroy', $action) }}">
+                            <form method="POST" action="{{ route('admin.actions.destroy', $action) }}"
+                                  onsubmit="return confirm('Видалити дію?')">
                                 @csrf @method('DELETE')
-                                <button type="submit" class="btn btn-sm btn-outline-danger"
-                                        onclick="return confirm('Видалити дію?')" title="Видалити">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Видалити">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </form>

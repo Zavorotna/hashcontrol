@@ -27,18 +27,17 @@
                                class="btn btn-sm btn-outline-secondary" title="Редагувати">
                                 <i class="bi bi-pencil"></i>
                             </a>
-                            <form method="POST" action="{{ route('admin.blacklisted_devices.destroy', $device) }}">
+                            <form method="POST" action="{{ route('admin.blacklisted_devices.destroy', $device) }}"
+                                  onsubmit="return confirm('Зняти з ігнору? Пристрій знову почне оброблятись.')">
                                 @csrf @method('DELETE')
-                                <button type="submit" class="btn btn-sm btn-outline-success"
-                                        onclick="return confirm('Зняти з ігнору? Пристрій знову почне оброблятись.')">
+                                <button type="submit" class="btn btn-sm btn-outline-success">
                                     <i class="bi bi-arrow-up-circle"></i> Відновити
                                 </button>
                             </form>
-                            <form method="POST" action="{{ route('admin.blacklisted_devices.force-delete', $device->id) }}">
+                            <form method="POST" action="{{ route('admin.blacklisted_devices.force-delete', $device->id) }}"
+                                  onsubmit="return confirm('Видалити назавжди з бази даних?')">
                                 @csrf @method('DELETE')
-                                <button type="submit" class="btn btn-sm btn-outline-danger"
-                                        onclick="return confirm('Видалити назавжди з бази даних?')"
-                                        title="Видалити назавжди">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Видалити назавжди">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </form>

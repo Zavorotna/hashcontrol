@@ -237,10 +237,10 @@
                                 <span class="badge bg-light text-dark border ms-1 small">вихід</span>
                             @endif
                         </div>
-                        <form method="POST" action="{{ route('user.tracked-objects.devices.detach', [$trackedObject, $device]) }}">
+                        <form method="POST" action="{{ route('user.tracked-objects.devices.detach', [$trackedObject, $device]) }}"
+                              onsubmit="return confirm('Відв\'язати пристрій?')">
                             @csrf @method('DELETE')
-                            <button type="submit" class="btn btn-sm btn-outline-danger"
-                                    onclick="return confirm('Відв\'язати пристрій?')" title="Відв'язати">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Відв'язати">
                                 <i class="bi bi-trash"></i>
                             </button>
                         </form>
