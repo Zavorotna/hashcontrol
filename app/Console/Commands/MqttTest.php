@@ -15,7 +15,7 @@ use PhpMqtt\Client\Facades\MQTT;
 class MqttTest extends Command
 {
     protected $signature   = 'mqtt:test';
-    protected $description = 'Тест підключення до MQTT';
+    protected $description = 'Subscribe to MQTT topics and process messages';
 
     public function handle(): void
     {
@@ -96,6 +96,7 @@ class MqttTest extends Command
                     // If device is registered — log the event
                     $device = Device::where('device_id', $deviceId)->first();
                     if ($device) {
+
                         DeviceLog::create([
                             'device_id' => $device->id,
                             'action_id' => $action?->id,

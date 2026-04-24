@@ -133,6 +133,24 @@ class TrackedObjectController extends Controller
         $exitDeviceIds  = Device::whereIn('id', $loggedDeviceIds)->where('is_range_start', false)->pluck('id');
         $hasRangePair   = $entryDeviceIds->isNotEmpty() && $exitDeviceIds->isNotEmpty();
 
+        // ── Current status ────────────────────────────────────────────────────
+        $currentStatus = null;
+        if ($hasRangePair) {
+            $lastEntry = DeviceLog::where('data', $trackedObject->external_id)->whereIn('device_id', $entryDeviceIds)->latest('logged_at')->first();
+            $lastExit  = DeviceLog::where('data', $trackedObject->external_id)->whereIn('device_id', $exitDeviceIds)->latest('logged_at')->first();
+
+            if ($lastEntry) {
+                $isInside  = !$lastExit || $lastEntry->logged_at > $lastExit->logged_at;
+                $sinceTime = $isInside ? $lastEntry->logged_at : $lastExit->logged_at;
+                $diffMin   = (int) now()->diffInMinutes(\Carbon\Carbon::parse($sinceTime));
+                $currentStatus = [
+                    'inside'    => $isInside,
+                    'since'     => $sinceTime,
+                    'diff_min'  => $diffMin,
+                ];
+            }
+        }
+
         // ── Logs in selected period ───────────────────────────────────────────
         $periodLogs = DeviceLog::where('data', $trackedObject->external_id)
             ->whereBetween('logged_at', [$since, $until])
@@ -172,7 +190,7 @@ class TrackedObjectController extends Controller
             'trackedObject', 'associatedDevices', 'availableDevices',
             'period', 'customDate', 'since', 'until',
             'periodLogs', 'sessions', 'hasRangePair', 'periodSummary',
-            'stats', 'recentLogs'
+            'stats', 'recentLogs', 'currentStatus'
         ));
     }
 

@@ -32,7 +32,7 @@ class AdminController extends Controller
             ->keyBy('device_id');
 
         $pendingRequests = MqttMessage::query()
-            ->whereRaw('NOT EXISTS (SELECT 1 FROM devices WHERE devices.device_id = mqtt_messages.device_id)')
+            ->whereRaw('NOT EXISTS (SELECT 1 FROM devices WHERE devices.device_id = mqtt_messages.device_id AND devices.deleted_at IS NULL)')
             ->whereRaw('NOT EXISTS (SELECT 1 FROM blacklisted_devices WHERE blacklisted_devices.device_id = mqtt_messages.device_id AND blacklisted_devices.deleted_at IS NULL)')
             ->whereIn('id', function ($q) {
                 $q->selectRaw('MAX(id)')
@@ -43,7 +43,10 @@ class AdminController extends Controller
             ->orderByDesc('created_at')
             ->get();
 
-        return view('admin.devices.index', compact('devices', 'pendingRequests', 'blacklistedDevices'));
+        $active  = $devices->whereNull('deleted_at');
+        $deleted = $devices->whereNotNull('deleted_at');
+
+        return view('admin.devices.index', compact('devices', 'pendingRequests', 'blacklistedDevices', 'active', 'deleted'));
     }
 
     public function createDevice()
@@ -640,18 +643,35 @@ class AdminController extends Controller
                 ->with('success', "Пристрій {$message->device_id} додано до чорного списку");
         }
 
-        // ── Create the device ────────────────────────────────────────────────
+        // ── Create or restore the device ───────────────────────────────────────
         $rangeRaw     = $request->input('is_range_start');
         $isRangeStart = ($rangeRaw === '' || is_null($rangeRaw)) ? null : (bool)$rangeRaw;
 
-        $device = Device::create([
-            'device_id'      => $message->device_id,
-            'name'           => $request->device_name ?? ('Device ' . $message->device_id),
-            'user_id'        => $user->id,
-            'company_id'     => $company->id,
-            'is_range_start' => $isRangeStart,
-            'is_on_off'      => $request->boolean('is_on_off'),
-        ]);
+        $device = Device::withTrashed()->where('device_id', $message->device_id)->first();
+        if ($device) {
+            // Restore if soft deleted
+            if ($device->trashed()) {
+                $device->restore();
+            }
+            // Update fields
+            $device->update([
+                'name'           => $request->device_name ?? ('Device ' . $message->device_id),
+                'user_id'        => $user->id,
+                'company_id'     => $company->id,
+                'is_range_start' => $isRangeStart,
+                'is_on_off'      => $request->boolean('is_on_off'),
+            ]);
+        } else {
+            // Create new
+            $device = Device::create([
+                'device_id'      => $message->device_id,
+                'name'           => $request->device_name ?? ('Device ' . $message->device_id),
+                'user_id'        => $user->id,
+                'company_id'     => $company->id,
+                'is_range_start' => $isRangeStart,
+                'is_on_off'      => $request->boolean('is_on_off'),
+            ]);
+        }
 
         // ── Assign actions to the device ─────────────────────────────────────
         if ($request->filled('actions') && is_array($request->actions)) {

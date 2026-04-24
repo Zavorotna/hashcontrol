@@ -82,8 +82,9 @@
                         <thead class="table-light">
                             <tr>
                                 <th>Назва</th>
-                                <th class="text-center col-hide-mobile" style="width:80px">За {{ $periodLabels[$period] ?? $period }}</th>
-                                <th>Статус</th>
+                                <th class="text-center col-hide-mobile" style="width:80px">Подій за {{ $periodLabels[$period] ?? $period }}</th>
+                                <th class="text-center" style="width:100px">Статус</th>
+                                <th class="text-center" style="width:120px">Час</th>
                                 <th style="width:40px"></th>
                             </tr>
                         </thead>
@@ -108,17 +109,26 @@
                                     @endif
                                 </td>
                                 <td class="text-center fw-semibold col-hide-mobile">{{ $st['period'] ?? 0 }}</td>
-                                <td class="small">
+                                <td class="text-center small">
                                     @if($cs !== null)
                                         @if($cs['inside'])
                                             <span class="badge bg-success">всередині</span>
-                                            <span class="text-muted ms-1">{{ $h > 0 ? $h.'г ' : '' }}{{ $m }}хв</span>
                                         @else
                                             <span class="badge bg-secondary">вийшов</span>
-                                            <span class="text-muted ms-1">{{ \Carbon\Carbon::parse($cs['since'])->format('d.m H:i') }}</span>
+                                        @endif
+                                    @else
+                                        <span class="text-muted">—</span>
+                                    @endif
+                                </td>
+                                <td class="text-center small">
+                                    @if($cs !== null)
+                                        @if($cs['inside'])
+                                            {{ $h > 0 ? $h.'г ' : '' }}{{ $m }}хв
+                                        @else
+                                            {{ \Carbon\Carbon::parse($cs['since'])->format('d.m H:i') }}
                                         @endif
                                     @elseif(!empty($st['last_at']))
-                                        <span class="text-muted">{{ \Carbon\Carbon::parse($st['last_at'])->format('d.m H:i') }}</span>
+                                        {{ \Carbon\Carbon::parse($st['last_at'])->format('d.m H:i') }}
                                     @else
                                         <span class="text-muted">—</span>
                                     @endif

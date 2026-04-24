@@ -112,6 +112,20 @@
                                 <td class="pe-3">{{ $trackedObject->address }}</td>
                             </tr>
                             @endif
+                            @if($currentStatus)
+                            <tr>
+                                <th class="text-muted fw-normal ps-3">Статус</th>
+                                <td class="pe-3">
+                                    @if($currentStatus['inside'])
+                                        <span class="badge bg-success">всередині</span>
+                                        <span class="text-muted ms-1">{{ floor($currentStatus['diff_min'] / 60) }}г {{ $currentStatus['diff_min'] % 60 }}хв</span>
+                                    @else
+                                        <span class="badge bg-secondary">вийшов</span>
+                                        <span class="text-muted ms-1">{{ \Carbon\Carbon::parse($currentStatus['since'])->format('d.m H:i') }}</span>
+                                    @endif
+                                </td>
+                            </tr>
+                            @endif
                         </tbody>
                     </table>
                     @if($trackedObject->notes)
@@ -156,6 +170,9 @@
 
                     {{-- All-time quick counters --}}
                     <hr class="my-3">
+                    <div class="text-center mb-2">
+                        <div class="small text-muted">кількість сеансів</div>
+                    </div>
                     <div class="row text-center g-1">
                         <div class="col-4">
                             <div class="fw-bold">{{ $stats['day'] }}</div>

@@ -14,6 +14,10 @@ class DeviceLog extends Model
         'logged_at',
     ];
 
+    protected $dates = [
+        'logged_at',
+    ];
+
     public function device(): BelongsTo
     {
         return $this->belongsTo(Device::class);
