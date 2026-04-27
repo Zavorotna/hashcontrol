@@ -6,6 +6,7 @@ use App\Models\Company;
 use App\Models\Device;
 use App\Models\DeviceLog;
 use App\Models\TrackedObject;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use PhpMqtt\Client\Facades\MQTT;
@@ -189,13 +190,79 @@ class TrackedObjectController extends Controller
             'month' => (clone $statsBase)->where('logged_at', '>=', now()->subMonth())->count(),
         ];
 
+        // ── ON/OFF cross-stats for linked devices ─────────────────────────────
+        $onOffCrossStats = [];
+        foreach ($trackedObject->devices->where('is_on_off', true) as $onOffDevice) {
+            $onOffLogs = DeviceLog::where('device_id', $onOffDevice->id)
+                ->whereIn('data', ['on', 'off'])
+                ->whereBetween('logged_at', [$since, $until])
+                ->orderBy('logged_at')->get();
+
+            $lastBefore = DeviceLog::where('device_id', $onOffDevice->id)
+                ->whereIn('data', ['on', 'off'])
+                ->where('logged_at', '<', $since)
+                ->latest('logged_at')->first();
+
+            $intervals      = [];
+            $onAt           = ($lastBefore && $lastBefore->data === 'on') ? $since->copy() : null;
+            $totalOnSeconds = 0;
+
+            foreach ($onOffLogs as $log) {
+                if ($log->data === 'on' && $onAt === null) {
+                    $onAt = Carbon::parse($log->logged_at);
+                } elseif ($log->data === 'off' && $onAt !== null) {
+                    $end            = Carbon::parse($log->logged_at);
+                    $intervals[]    = [$onAt, $end];
+                    $totalOnSeconds += $onAt->diffInSeconds($end);
+                    $onAt           = null;
+                }
+            }
+            if ($onAt !== null) {
+                $intervals[]    = [$onAt, $until->copy()];
+                $totalOnSeconds += $onAt->diffInSeconds($until);
+            }
+
+            $lastStateLog = DeviceLog::where('device_id', $onOffDevice->id)
+                ->whereIn('data', ['on', 'off'])->latest('logged_at')->first();
+
+            $duringOn = 0;
+            foreach ($intervals as [$iStart, $iEnd]) {
+                $duringOn += DeviceLog::where('data', $trackedObject->external_id)
+                    ->whereBetween('logged_at', [$iStart, $iEnd])->count();
+            }
+
+            $overlapMinutes = null;
+            if ($hasRangePair && !empty($intervals)) {
+                $objLogs = DeviceLog::where('data', $trackedObject->external_id)
+                    ->whereBetween('logged_at', [$since, $until])
+                    ->whereIn('device_id', $entryDeviceIds->merge($exitDeviceIds))
+                    ->orderBy('logged_at')->get();
+                $objSessions    = $this->buildSimpleSessions($objLogs, $entryDeviceIds, $exitDeviceIds, $until);
+                $overlapSeconds = $this->intersectIntervals($objSessions, $intervals);
+                $overlapMinutes = (int) round($overlapSeconds / 60);
+            }
+
+            $periodSeconds = $since->diffInSeconds($until);
+            $onOffCrossStats[] = [
+                'device'          => $onOffDevice,
+                'current_state'   => $lastStateLog?->data ?? 'unknown',
+                'on_h'            => floor($totalOnSeconds / 3600),
+                'on_m'            => floor(($totalOnSeconds % 3600) / 60),
+                'on_percent'      => $periodSeconds > 0 && $totalOnSeconds > 0
+                    ? round($totalOnSeconds / $periodSeconds * 100) : 0,
+                'during_on'       => $duringOn,
+                'overlap_minutes' => $overlapMinutes,
+                'has_intervals'   => !empty($intervals),
+            ];
+        }
+
         $recentLogs = $periodLogs->sortByDesc('logged_at');
 
         return view('user.tracked-objects.show', compact(
             'trackedObject', 'associatedDevices', 'availableDevices',
             'period', 'customDate', 'since', 'until',
             'periodLogs', 'sessions', 'hasRangePair', 'periodSummary',
-            'stats', 'recentLogs', 'currentStatus'
+            'stats', 'recentLogs', 'currentStatus', 'onOffCrossStats'
         ));
     }
 
@@ -369,5 +436,38 @@ class TrackedObjectController extends Controller
         }
         $companyIds = $this->getCompanyIds(auth()->id());
         abort_unless($companyIds->contains($obj->company_id), 403);
+    }
+
+    private function buildSimpleSessions($logs, $entryIds, $exitIds, Carbon $until): array
+    {
+        $sessions  = [];
+        $openEntry = null;
+        foreach ($logs as $log) {
+            if ($entryIds->contains($log->device_id) && $openEntry === null) {
+                $openEntry = Carbon::parse($log->logged_at);
+            } elseif ($exitIds->contains($log->device_id) && $openEntry !== null) {
+                $sessions[] = [$openEntry, Carbon::parse($log->logged_at)];
+                $openEntry  = null;
+            }
+        }
+        if ($openEntry !== null) {
+            $sessions[] = [$openEntry, $until->copy()];
+        }
+        return $sessions;
+    }
+
+    private function intersectIntervals(array $sessions, array $onIntervals): int
+    {
+        $total = 0;
+        foreach ($sessions as [$sStart, $sEnd]) {
+            foreach ($onIntervals as [$oStart, $oEnd]) {
+                $start = max($sStart->timestamp, $oStart->timestamp);
+                $end   = min($sEnd->timestamp, $oEnd->timestamp);
+                if ($end > $start) {
+                    $total += $end - $start;
+                }
+            }
+        }
+        return $total;
     }
 }

@@ -73,7 +73,11 @@ class MqttTest extends Command
                         );
                     }
 
-                    // Save or update message (one per device — restore if soft-deleted)
+                    // Save or update message (one per device — restore if soft-deleted).
+                    // Soft-delete only happens when a registered device is deleted, so restoring
+                    // it allows the device to reappear as pending for re-registration.
+                    // Admin dismissal uses forceDelete, so withTrashed() won't find those records
+                    // and a fresh entry will be created on the next incoming message instead.
                     $mqttMsg = MqttMessage::withTrashed()->where('device_id', $deviceId)->first();
                     if ($mqttMsg) {
                         $mqttMsg->restore();

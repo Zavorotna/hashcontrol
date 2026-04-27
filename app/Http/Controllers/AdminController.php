@@ -139,6 +139,7 @@ class AdminController extends Controller
 
     public function destroyDevice(Device $device)
     {
+        MqttMessage::where('device_id', $device->device_id)->delete();
         $device->delete();
         return redirect()->route('admin.devices')->with('success', 'Device deleted');
     }
@@ -418,15 +419,15 @@ class AdminController extends Controller
     public function destroyMqttMessage($id)
     {
         $message = MqttMessage::findOrFail($id);
-        $message->delete();
-        return redirect()->route('admin.index')->with('success', 'Запит видалено');
+        $message->forceDelete();
+        return redirect()->route('admin.devices')->with('success', 'Запит видалено');
     }
 
     public function restoreMqttMessage($id)
     {
         $message = MqttMessage::withTrashed()->findOrFail($id);
         $message->restore();
-        return redirect()->route('admin.index')->with('success', 'Запит відновлено');
+        return redirect()->route('admin.devices')->with('success', 'Запит відновлено');
     }
 
     // Users

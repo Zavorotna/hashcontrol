@@ -73,6 +73,68 @@
                data-base-url="{{ $baseUrl }}">
     </div>
 
+    {{-- ── ON/OFF cross-stats ──────────────────────────────────────────────── --}}
+    @if(!empty($onOffCrossStats))
+    <div class="card mb-4">
+        <div class="card-header fw-semibold">Суміжна статистика роботи</div>
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Пристрій</th>
+                        <th class="text-center">Стан</th>
+                        <th class="text-center">Час роботи за період</th>
+                        <th class="text-center">{{ $hasRangePair ? 'Сеансів під час роботи' : 'Подій під час роботи' }}</th>
+                        @if(collect($onOffCrossStats)->contains(fn($cs) => $cs['overlap_minutes'] !== null))
+                        <th class="text-center">Перетин часу</th>
+                        @endif
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($onOffCrossStats as $cs)
+                    @php
+                        $stateColor = $cs['current_state'] === 'on' ? 'success' : ($cs['current_state'] === 'off' ? 'danger' : 'secondary');
+                        $stateLabel = $cs['current_state'] === 'on' ? 'Увімк.' : ($cs['current_state'] === 'off' ? 'Вимк.' : '—');
+                    @endphp
+                    <tr>
+                        <td class="fw-semibold">
+                            <a href="{{ route('user.devices.show', $cs['device']) }}?period={{ $period }}{{ !empty($customDate) ? '&date='.$customDate : '' }}"
+                               class="text-decoration-none">
+                                {{ $cs['device']->name }}
+                            </a>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-{{ $stateColor }}">{{ $stateLabel }}</span>
+                        </td>
+                        <td class="text-center text-nowrap">
+                            @if($cs['has_intervals'])
+                                {{ $cs['on_h'] }}г {{ $cs['on_m'] }}хв
+                                <span class="text-muted small d-block">({{ $cs['on_percent'] }}%)</span>
+                            @else
+                                <span class="text-muted small">не працював</span>
+                            @endif
+                        </td>
+                        <td class="text-center">
+                            {{ $cs['has_intervals'] ? $cs['during_on'] : '—' }}
+                        </td>
+                        @if(collect($onOffCrossStats)->contains(fn($cs) => $cs['overlap_minutes'] !== null))
+                        <td class="text-center text-nowrap">
+                            @if($cs['overlap_minutes'] !== null)
+                                @php $oh = floor($cs['overlap_minutes'] / 60); $om = $cs['overlap_minutes'] % 60; @endphp
+                                {{ $oh > 0 ? $oh.'г ' : '' }}{{ $om }}хв
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td>
+                        @endif
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+    @endif
+
     <div class="row g-4">
 
         {{-- ── Left column ─────────────────────────────────────────────────── --}}
