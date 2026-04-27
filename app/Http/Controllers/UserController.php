@@ -318,7 +318,11 @@ class UserController extends Controller
             // Cross-stats with intersection time
             $crossStats = [];
             if ($device->company_id) {
-                $companyObjects = $allObjects->where('company_id', $device->company_id);
+                // Only objects explicitly linked to this ON/OFF device via the pivot table
+                $linkedObjectIds = DB::table('device_tracked_object')
+                    ->where('device_id', $device->id)
+                    ->pluck('tracked_object_id');
+                $companyObjects = $allObjects->whereIn('id', $linkedObjectIds->toArray());
 
                 // Get range-pair device IDs for this company
                 $entryIds = Device::where('company_id', $device->company_id)->where('is_range_start', true)->pluck('id');
@@ -367,13 +371,14 @@ class UserController extends Controller
             $m = floor(($totalOnSeconds % 3600) / 60);
 
             $onOffStats[] = [
-                'device'        => $device,
-                'current_state' => $currentState,
-                'total_on_sec'  => $totalOnSeconds,
-                'on_h'          => $h,
-                'on_m'          => $m,
-                'on_percent'    => $onPercent,
-                'cross_stats'   => $crossStats,
+                'device'         => $device,
+                'current_state'  => $currentState,
+                'total_on_sec'   => $totalOnSeconds,
+                'on_h'           => $h,
+                'on_m'           => $m,
+                'on_percent'     => $onPercent,
+                'cross_stats'    => $crossStats,
+                'linked_count'   => $linkedObjectIds->count(),
             ];
         }
 

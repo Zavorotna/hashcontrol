@@ -210,7 +210,12 @@
                                 <select name="device_id" class="form-select form-select-sm" required>
                                     <option value="">— виберіть пристрій —</option>
                                     @foreach($availableDevices as $dev)
-                                        <option value="{{ $dev->id }}">{{ $dev->name }}</option>
+                                        @php
+                                            $devType = $dev->is_on_off
+                                                ? ' [ON/OFF]'
+                                                : (is_null($dev->getRawOriginal('is_range_start')) ? '' : ($dev->is_range_start ? ' [вхід]' : ' [вихід]'));
+                                        @endphp
+                                        <option value="{{ $dev->id }}">{{ $dev->name }}{{ $devType }}</option>
                                     @endforeach
                                 </select>
                                 <button type="submit" class="btn btn-sm btn-primary text-nowrap">Прив'язати</button>

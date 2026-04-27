@@ -76,7 +76,12 @@
                 </div>
             </div>
 
-            @if(!empty($stat['cross_stats']))
+            @if($stat['linked_count'] === 0)
+            <div class="alert alert-warning mb-0 py-2 small">
+                Суміжна статистика не відображається — прив'яжіть об'єкти до цього пристрою
+                на сторінці <strong>Відстежуваних об'єктів</strong>.
+            </div>
+            @elseif(!empty($stat['cross_stats']))
             <h6 class="mb-2">Суміжна статистика об'єктів</h6>
             <div class="table-responsive">
                 <table class="table table-sm table-bordered align-middle mb-0">

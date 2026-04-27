@@ -178,10 +178,15 @@ class TrackedObjectController extends Controller
         }
 
         // ── All-time quick stats (sidebar counters) ───────────────────────────
+        // Count only entry-device logs when a range pair exists — each entry = 1 session.
+        // Without a pair every log is an independent access, so no filter is needed.
+        $statsBase = DeviceLog::where('data', $trackedObject->external_id)
+            ->when($hasRangePair, fn($q) => $q->whereIn('device_id', $entryDeviceIds));
+
         $stats = [
-            'day'   => DeviceLog::where('data', $trackedObject->external_id)->where('logged_at', '>=', now()->subDay())->count(),
-            'week'  => DeviceLog::where('data', $trackedObject->external_id)->where('logged_at', '>=', now()->subWeek())->count(),
-            'month' => DeviceLog::where('data', $trackedObject->external_id)->where('logged_at', '>=', now()->subMonth())->count(),
+            'day'   => (clone $statsBase)->where('logged_at', '>=', now()->subDay())->count(),
+            'week'  => (clone $statsBase)->where('logged_at', '>=', now()->subWeek())->count(),
+            'month' => (clone $statsBase)->where('logged_at', '>=', now()->subMonth())->count(),
         ];
 
         $recentLogs = $periodLogs->sortByDesc('logged_at');
