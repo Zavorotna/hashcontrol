@@ -143,7 +143,7 @@ class TrackedObjectController extends Controller
             if ($lastEntry) {
                 $isInside  = !$lastExit || $lastEntry->logged_at > $lastExit->logged_at;
                 $sinceTime = $isInside ? $lastEntry->logged_at : $lastExit->logged_at;
-                $diffMin   = (int) now()->diffInMinutes(\Carbon\Carbon::parse($sinceTime));
+                $diffMin   = (int) abs(now()->diffInMinutes(\Carbon\Carbon::parse($sinceTime)));
                 $currentStatus = [
                     'inside'    => $isInside,
                     'since'     => $sinceTime,

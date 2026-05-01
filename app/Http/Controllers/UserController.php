@@ -216,7 +216,7 @@ class UserController extends Controller
                 if ($lastEntry) {
                     $isInside  = !$lastExit || $lastEntry->logged_at > $lastExit->logged_at;
                     $sinceTime = $isInside ? $lastEntry->logged_at : $lastExit->logged_at;
-                    $diffMin   = (int) now()->diffInMinutes(Carbon::parse($sinceTime));
+                    $diffMin   = (int) abs(now()->diffInMinutes(Carbon::parse($sinceTime)));
                     $currentStatus = [
                         'inside'    => $isInside,
                         'since'     => $sinceTime,
@@ -316,7 +316,8 @@ class UserController extends Controller
             $currentState = $lastStateLog?->data ?? 'unknown';
 
             // Cross-stats with intersection time
-            $crossStats = [];
+            $crossStats      = [];
+            $linkedObjectIds = collect();
             if ($device->company_id) {
                 // Only objects explicitly linked to this ON/OFF device via the pivot table
                 $linkedObjectIds = DB::table('device_tracked_object')
