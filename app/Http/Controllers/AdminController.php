@@ -139,9 +139,16 @@ class AdminController extends Controller
 
     public function destroyDevice(Device $device)
     {
-        MqttMessage::where('device_id', $device->device_id)->delete();
-        $device->delete();
+        $this->hardDeleteDevice($device);
         return redirect()->route('admin.devices')->with('success', 'Device deleted');
+    }
+
+    private function hardDeleteDevice(Device $device): void
+    {
+        DeviceLog::where('device_id', $device->id)->delete();
+        MqttMessage::where('device_id', $device->device_id)->forceDelete();
+        $device->trackedObjects()->detach();
+        $device->forceDelete();
     }
 
     public function registerDeviceObjects(Request $request, Device $device)
@@ -261,16 +268,12 @@ class AdminController extends Controller
 
     public function destroyCompany(Company $company)
     {
-        // Soft-delete all devices of this company
-        Device::where('company_id', $company->id)->delete();
+        Device::where('company_id', $company->id)->get()
+            ->each(fn($d) => $this->hardDeleteDevice($d));
 
-        // Delete tracked objects and offices
         \App\Models\TrackedObject::where('company_id', $company->id)->delete();
         \App\Models\Office::where('company_id', $company->id)->delete();
-
-        // Detach all users from this company
         $company->users()->detach();
-
         $company->delete();
         return redirect()->route('admin.users')->with('success', 'Компанію видалено');
     }
@@ -542,7 +545,7 @@ class AdminController extends Controller
     {
         abort_if($user->role === 'admin', 403);
 
-        $user->devices()->update(['user_id' => null]);
+        $user->devices()->get()->each(fn($d) => $this->hardDeleteDevice($d));
         $user->companies()->detach();
         $user->delete();
 
