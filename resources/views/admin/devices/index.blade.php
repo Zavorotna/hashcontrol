@@ -33,7 +33,7 @@
                         <td><code>{{ $req->device_id }}</code></td>
                         <td class="small">{{ $req->action ?? '—' }}</td>
                         <td><code class="small">{{ $req->data }}</code></td>
-                        <td class="small text-muted text-nowrap">{{ $req->updated_at->format('d.m H:i') }}</td>
+                        <td class="small text-muted text-nowrap">{{ \Carbon\Carbon::parse($req->getRawOriginal('updated_at'))->format('d.m H:i') }}</td>
                         <td class="text-nowrap">
                             @if($req->trashed())
                                 <div class="btn-actions">
